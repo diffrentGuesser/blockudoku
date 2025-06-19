@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Blockudoku</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+            user-select: none;
+        }
+        
+        .game-container {
+            display: flex;
+            margin-top: 20px;
+            gap: 30px;
+        }
+        
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(9, 40px);
+            grid-template-rows: repeat(9, 40px);
+            gap: 1px;
+            background-color: #999;
+            border: 2px solid #333;
+        }
+        
+        .cell {
+            width: 40px;
+            height: 40px;
+            background-color: white;
+            border: 1px solid #ddd;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .cell::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: inherit;
+            z-index: 1;
+        }
+        
+        .cell.clearing {
+            animation: clearAnimation 0.5s ease-out forwards;
+        }
+        
+        @keyframes clearAnimation {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 0.8;
+                background-color: white;
+            }
+            100% {
+                transform: scale(0);
+                opacity: 0;
+            }
+        }
+        
+        .block {
+            position: absolute;
+            cursor: grab;
+            z-index: 10;
+        }
+        
+        .block-cell {
+            width: 20px;
+            height: 20px;
+            box-sizing: border-box;
+            border: 1px solid rgba(0,0,0,0.2);
+            position: absolute;
+        }
+        
+        .blocks-container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            width: 180px;
+        }
+        
+        .block-options {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 15px;
+            background-color: #ddd;
+            border-radius: 5px;
+        }
+        
+        .block-option {
+            position: relative;
+            height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #eee;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        
+        .block-option:hover {
+            transform: scale(1.05);
+        }
+        
+        .block-option.used {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .block-option.used .block {
+            display: none;
+        }
+        
+        .score {
+            font-size: 24px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        
+        .score-added {
+            position: absolute;
+            color: green;
+            font-weight: bold;
+            animation: scoreAnimation 1s ease-out forwards;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        @keyframes scoreAnimation {
+            0% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+        }
+        
+        .game-over {
+            color: white;
+            background-color: #ff4444;
+            font-size: 24px;
+            padding: 15px 30px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .game-over:hover {
+            background-color: #ff3333;
+        }
+        
+        .instructions {
+            margin-top: 20px;
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            max-width: 600px;
+            text-align: center;
+        }
+        
+        .blocks-used {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        h1 {
+            user-select: none;
+        }
+        
+        /* Multiplayer Styles */
+        .lobby-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .lobby-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        button:hover {
+            background-color: #3367D6;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .player-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            width: 300px;
+        }
+        
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .player-item:last-child {
+            border-bottom: none;
+        }
+        
+        .current-player {
+            background-color: #e3f2fd;
+            font-weight: bold;
+        }
+        
+        .room-code {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4285F4;
+        }
+        
+        .input-field {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        .game-status {
+            font-size: 18px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Multiplayer Blockudoku</h1>
+    
+    <div class="lobby-container" id="lobby-container">
+        <div class="room-code" id="room-code-display"></div>
+        <div class="game-status" id="game-status">Lobby</div>
+        <div class="player-list" id="player-list"></div>
+        <div class="lobby-actions">
+            <button id="start-game-btn" disabled>Spiel starten</button>
+            <button id="leave-game-btn">Lobby verlassen</button>
+        </div>
+    </div>
+    
+    <div id="game-area" style="display: none;">
+        <div class="score">Punkte: <span id="score">0</span></div>
+        <div class="blocks-used">Verwendete Blöcke: <span id="blocks-used">0/3</span></div>
+        <div class="game-status" id="turn-status"></div>
+        
+        <div class="game-container">
+            <div id="game-board"></div>
+            
+            <div class="blocks-container">
+                <div class="block-options">
+                    <h3>Wähle einen Block:</h3>
+                    <div id="block-option-1" class="block-option"></div>
+                    <div id="block-option-2" class="block-option"></div>
+                    <div id="block-option-3" class="block-option"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="game-over" id="game-over">Game Over! Klicke zum Neustart</div>
+    
+    <div class="instructions">
+        <div id="join-create-buttons">
+            <button id="create-game-btn">Neues Spiel erstellen</button>
+            <button id="join-game-btn">Spiel beitreten</button>
+        </div>
+        <div id="join-form" style="display: none; margin-top: 10px;">
+            <input type="text" id="room-code-input" class="input-field" placeholder="Raumcode eingeben">
+            <button id="confirm-join-btn">Beitreten</button>
+            <button id="cancel-join-btn">Abbrechen</button>
+        </div>
+        <p><strong>Spielanleitung:</strong> Erstelle oder trete einem Spiel bei. Wenn alle Spieler bereit sind, startet der Ersteller das Spiel. 
+        Spieler sind abwechselnd an der Reihe. Wer keinen gültigen Zug mehr machen kann, verliert!</p>
+    </div>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Firebase configuration (replace with your own)
+            const firebaseConfig = {
+              apiKey: "AIzaSyBz-mDmO3VgjO3kJ-LTxzA2REs-bSeHfKc",
+              authDomain: "blokudoku-28cf5.firebaseapp.com",
+              projectId: "blokudoku-28cf5",
+              storageBucket: "blokudoku-28cf5.firebasestorage.app",
+              messagingSenderId: "373933804934",
+              appId: "1:373933804934:web:4d6c81a291f23c08ca3007",
+              measurementId: "G-EWV1X5ESZE"
+            };
+            
+            // Initialize Firebase
+            firebase.initializeApp(firebaseConfig);
+            const database = firebase.database();
+            
+            // Game constants
+            const boardSize = 9;
+            const cellSize = 40;
+            const blockCellSize = 20;
+            
+            // DOM elements
+            const lobbyContainer = document.getElementById('lobby-container');
+            const roomCodeDisplay = document.getElementById('room-code-display');
+            const playerList = document.getElementById('player-list');
+            const startGameBtn = document.getElementById('start-game-btn');
+            const leaveGameBtn = document.getElementById('leave-game-btn');
+            const createGameBtn = document.getElementById('create-game-btn');
+            const joinGameBtn = document.getElementById('join-game-btn');
+            const joinForm = document.getElementById('join-form');
+            const roomCodeInput = document.getElementById('room-code-input');
+            const confirmJoinBtn = document.getElementById('confirm-join-btn');
+            const cancelJoinBtn = document.getElementById('cancel-join-btn');
+            const gameArea = document.getElementById('game-area');
+            const gameStatus = document.getElementById('game-status');
+            const turnStatus = document.getElementById('turn-status');
+            
+            // Game state
+            let playerId;
+            let playerName;
+            let roomCode;
+            let isHost = false;
+            let gameRef;
+            let playersRef;
+            let boardRef;
+            let currentTurnPlayerId;
+            let gameStarted = false;
+            let gameBoard;
+            let blockOptions;
+            let scoreElement;
+            let blocksUsedElement;
+            let gameOverElement;
+            let board = Array(boardSize).fill().map(() => Array(boardSize).fill(0));
+            let score = 0;
+            let availableBlocks = [];
+            let usedBlocksCount = 0;
+            let draggedBlock = null;
+            let draggedBlockType = null;
+            let draggedBlockOffset = { x: 0, y: 0 };
+            let draggedBlockOption = null;
+            
+            // Block-Typen
+            const blockTypes = [
+                { shape: [[1,1,1,1]], color: '#FF5252', name: 'I-Block' },
+                { shape: [[1,1], [1,1]], color: '#4285F4', name: 'O-Block' },
+                { shape: [[1,1,1], [0,1,0]], color: '#0F9D58', name: 'T-Block' },
+                { shape: [[1,1,0], [0,1,1]], color: '#9C27B0', name: 'Z-Block' },
+                { shape: [[0,1,0], [1,1,1]], color: '#FF9800', name: 'L-Block' },
+                { shape: [[1,0,0], [1,1,1]], color: '#00BCD4', name: 'J-Block' },
+                { shape: [[1,1,1]], color: '#FFEB3B', name: '3er-Block' },
+                { shape: [[1,1], [1,0]], color: '#E91E63', name: 'L-Block klein' },
+                { shape: [[1,1,1], [1,0,0]], color: '#795548', name: 'Großer L-Block' },
+                { shape: [[1,1,1,1], [0,0,0,1]], color: '#607D8B', name: 'Langer L-Block' },
+                { shape: [[1,1,1], [0,1,0], [0,1,0]], color: '#8BC34A', name: 'T-Block lang' },
+                { shape: [[1,1,1,1,1]], color: '#9E9E9E', name: '5er-Block' }
+            ];
+            
+            // Initialize game UI
+            function initGameUI() {
+                gameBoard = document.getElementById('game-board');
+                blockOptions = [
+                    document.getElementById('block-option-1'),
+                    document.getElementById('block-option-2'),
+                    document.getElementById('block-option-3')
+                ];
+                scoreElement = document.getElementById('score');
+                blocksUsedElement = document.getElementById('blocks-used');
+                gameOverElement = document.getElementById('game-over');
+                
+                initBoard();
+                generateBlockOptions();
+                updateBoard();
+            }
+            
+            // Generate random player name
+            function generatePlayerName() {
+                const adjectives = ["Schneller", "Lustiger", "Cleverer", "Mutiger", "Starker", "Schlauer", "Kreativer"];
+                const nouns = ["Fuchs", "Hase", "Bär", "Adler", "Löwe", "Tiger", "Drache"];
+                const randomAdjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+                const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
+                return `${randomAdjective} ${randomNoun}`;
+            }
+            
+            // Generate random room code
+            function generateRoomCode() {
+                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                let result = '';
+                for (let i = 0; i < 4; i++) {
+                    result += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return result;
+            }
+            
+            // Create a new game
+            function createGame() {
+                playerId = generatePlayerName() + '-' + Math.random().toString(36).substr(2, 5);
+                playerName = playerId.split('-')[0];
+                roomCode = generateRoomCode();
+                isHost = true;
+                
+                // Create game in Firebase
+                gameRef = database.ref('games/' + roomCode);
+                playersRef = gameRef.child('players');
+                boardRef = gameRef.child('board');
+                
+                // Initialize game data
+                gameRef.set({
+                    status: 'waiting',
+                    currentTurn: null,
+                    board: Array(boardSize).fill().map(() => Array(boardSize).fill(0)),
+                    players: {}
+                });
+                
+                // Add host player
+                playersRef.child(playerId).set({
+                    name: playerName,
+                    score: 0,
+                    isHost: true,
+                    canPlay: true
+                });
+                
+                // Set up listeners
+                setupGameListeners();
+                
+                // Update UI
+                document.getElementById('join-create-buttons').style.display = 'none';
+                lobbyContainer.style.display = 'flex';
+                roomCodeDisplay.textContent = `Raumcode: ${roomCode}`;
+                startGameBtn.disabled = false;
+                
+                // Show player list
+                updatePlayerList();
+            }
+            
+            // Join an existing game
+            function joinGame(code) {
+                playerId = generatePlayerName() + '-' + Math.random().toString(36).substr(2, 5);
+                playerName = playerId.split('-')[0];
+                roomCode = code;
+                isHost = false;
+                
+                // Connect to game in Firebase
+                gameRef = database.ref('games/' + roomCode);
+                playersRef = gameRef.child('players');
+                boardRef = gameRef.child('board');
+                
+                // Check if game exists
+                gameRef.once('value').then((snapshot) => {
+                    if (!snapshot.exists()) {
+                        alert('Spiel nicht gefunden!');
+                        return;
+                    }
+                    
+                    const gameData = snapshot.val();
+                    if (gameData.status !== 'waiting') {
+                        alert('Spiel hat bereits begonnen!');
+                        return;
+                    }
+                    
+                    // Add player
+                    playersRef.child(playerId).set({
+                        name: playerName,
+                        score: 0,
+                        isHost: false,
+                        canPlay: true
+                    });
+                    
+                    // Set up listeners
+                    setupGameListeners();
+                    
+                    // Update UI
+                    document.getElementById('join-create-buttons').style.display = 'none';
+                    joinForm.style.display = 'none';
+                    lobbyContainer.style.display = 'flex';
+                    roomCodeDisplay.textContent = `Raumcode: ${roomCode}`;
+                    startGameBtn.disabled = true;
+                    
+                    // Show player list
+                    updatePlayerList();
+                });
+            }
+            
+            // Set up game listeners
+            function setupGameListeners() {
+                // Listen for players changes
+                playersRef.on('value', (snapshot) => {
+                    updatePlayerList();
+                });
+                
+                // Listen for game status changes
+                gameRef.child('status').on('value', (snapshot) => {
+                    const status = snapshot.val();
+                    gameStatus.textContent = status === 'waiting' ? 'Lobby' : 'Spiel läuft';
+                    
+                    if (status === 'playing') {
+                        gameStarted = true;
+                        lobbyContainer.style.display = 'none';
+                        gameArea.style.display = 'block';
+                        initGameUI();
+                        
+                        // Listen for turn changes
+                        gameRef.child('currentTurn').on('value', (turnSnapshot) => {
+                            currentTurnPlayerId = turnSnapshot.val();
+                            updateTurnStatus();
+                        });
+                    }
+                });
+                
+                // Listen for board changes
+                boardRef.on('value', (snapshot) => {
+                    const newBoard = snapshot.val();
+                    if (newBoard) {
+                        board = newBoard;
+                        if (gameBoard) {
+                            updateBoard();
+                        }
+                    }
+                });
+            }
+            
+            // Update player list
+            function updatePlayerList() {
+                playersRef.once('value').then((snapshot) => {
+                    const players = snapshot.val() || {};
+                    playerList.innerHTML = '';
+                    
+                    Object.keys(players).forEach((id) => {
+                        const player = players[id];
+                        const playerElement = document.createElement('div');
+                        playerElement.className = 'player-item';
+                        if (id === playerId) {
+                            playerElement.classList.add('current-player');
+                        }
+                        
+                        playerElement.innerHTML = `
+                            <span>${player.name}</span>
+                            <span>${player.isHost ? '(Host)' : ''}</span>
+                        `;
+                        
+                        playerList.appendChild(playerElement);
+                    });
+                });
+            }
+            
+            // Update turn status
+            function updateTurnStatus() {
+                if (!gameStarted) return;
+                
+                playersRef.child(currentTurnPlayerId).once('value').then((snapshot) => {
+                    const player = snapshot.val();
+                    if (playerId === currentTurnPlayerId) {
+                        turnStatus.textContent = "Du bist am Zug!";
+                        turnStatus.style.color = "green";
+                        enableBlockOptions();
+                    } else {
+                        turnStatus.textContent = `${player.name} ist am Zug...`;
+                        turnStatus.style.color = "black";
+                        disableBlockOptions();
+                    }
+                });
+            }
+            
+            // Enable block options for current player
+            function enableBlockOptions() {
+                blockOptions.forEach(option => {
+                    if (!option.classList.contains('used')) {
+                        option.style.pointerEvents = 'auto';
+                        option.style.opacity = '1';
+                    }
+                });
+            }
+            
+            // Disable block options for other players
+            function disableBlockOptions() {
+                blockOptions.forEach(option => {
+                    option.style.pointerEvents = 'none';
+                    option.style.opacity = '0.5';
+                });
+            }
+            
+            // Start the game
+            function startGame() {
+                if (!isHost) return;
+                
+                // Get all player IDs
+                playersRef.once('value').then((snapshot) => {
+                    const players = snapshot.val();
+                    const playerIds = Object.keys(players);
+                    
+                    if (playerIds.length < 1) {
+                        alert('Mindestens 1 Spieler benötigt!');
+                        return;
+                    }
+                    
+                    // Set first player as current turn
+                    const firstPlayerId = playerIds[0];
+                    gameRef.update({
+                        status: 'playing',
+                        currentTurn: firstPlayerId
+                    });
+                });
+            }
+            
+            // Leave the game
+            function leaveGame() {
+                if (gameRef) {
+                    if (isHost) {
+                        // Host leaves - remove entire game
+                        gameRef.remove();
+                    } else {
+                        // Player leaves - remove themselves
+                        playersRef.child(playerId).remove();
+                    }
+                }
+                
+                resetUI();
+            }
+            
+            // Reset UI to initial state
+            function resetUI() {
+                document.getElementById('join-create-buttons').style.display = 'block';
+                lobbyContainer.style.display = 'none';
+                gameArea.style.display = 'none';
+                joinForm.style.display = 'none';
+                gameStarted = false;
+                
+                if (gameRef) {
+                    gameRef.off();
+                    playersRef.off();
+                    boardRef.off();
+                }
+            }
+            
+            // Rotate a block
+            function rotateBlock(block) {
+                const rows = block.shape.length;
+                const cols = block.shape[0].length;
+                const rotated = [];
+                
+                for (let x = 0; x < cols; x++) {
+                    const newRow = [];
+                    for (let y = rows - 1; y >= 0; y--) {
+                        newRow.push(block.shape[y][x]);
+                    }
+                    rotated.push(newRow);
+                }
+                
+                return rotated;
+            }
+            
+            // Mirror a block
+            function mirrorBlock(block) {
+                return block.shape.map(row => [...row].reverse());
+            }
+            
+            // Randomly transform a block
+            function randomTransform(block) {
+                const transformedBlock = JSON.parse(JSON.stringify(block));
+                const rotationCount = Math.floor(Math.random() * 4);
+                const shouldMirror = Math.random() > 0.5;
+                
+                for (let i = 0; i < rotationCount; i++) {
+                    transformedBlock.shape = rotateBlock(transformedBlock);
+                }
+                
+                if (shouldMirror) {
+                    transformedBlock.shape = mirrorBlock(transformedBlock);
+                }
+                
+                return transformedBlock;
+            }
+            
+            // Initialize the board
+            function initBoard() {
+                gameBoard.innerHTML = '';
+                for (let y = 0; y < boardSize; y++) {
+                    for (let x = 0; x < boardSize; x++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'cell';
+                        cell.dataset.x = x;
+                        cell.dataset.y = y;
+                        gameBoard.appendChild(cell);
+                    }
+                }
+            }
+            
+            // Generate block options
+            function generateBlockOptions() {
+                availableBlocks = [];
+                usedBlocksCount = 0;
+                blocksUsedElement.textContent = '0/3';
+                
+                while (availableBlocks.length < 3) {
+                    const randomIndex = Math.floor(Math.random() * blockTypes.length);
+                    const blockType = blockTypes[randomIndex];
+                    
+                    if (!availableBlocks.some(b => b.name === blockType.name)) {
+                        const transformedBlock = randomTransform(blockType);
+                        availableBlocks.push(transformedBlock);
+                    }
+                }
+                
+                blockOptions.forEach((option, index) => {
+                    option.innerHTML = '';
+                    option.classList.remove('used');
+                    const blockElement = createBlockElement(availableBlocks[index]);
+                    option.appendChild(blockElement);
+                    
+                    blockElement.addEventListener('mousedown', (e) => {
+                        if (!option.classList.contains('used') {
+                            startDrag(e, availableBlocks[index], blockElement, option);
+                        }
+                    });
+                });
+            }
+            
+            // Create a block element
+            function createBlockElement(block) {
+                const blockElement = document.createElement('div');
+                blockElement.className = 'block';
+                blockElement.style.position = 'absolute';
+                blockElement.title = block.name;
+                
+                const rows = block.shape.length;
+                const cols = block.shape[0].length;
+                const blockWidth = cols * blockCellSize;
+                const blockHeight = rows * blockCellSize;
+                
+                blockElement.style.width = blockWidth + 'px';
+                blockElement.style.height = blockHeight + 'px';
+                
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
+                        if (block.shape[y][x]) {
+                            const cell = document.createElement('div');
+                            cell.className = 'block-cell';
+                            cell.style.backgroundColor = block.color;
+                            cell.style.left = (x * blockCellSize) + 'px';
+                            cell.style.top = (y * blockCellSize) + 'px';
+                            blockElement.appendChild(cell);
+                        }
+                    }
+                }
+                
+                return blockElement;
+            }
+            
+            // Start dragging a block
+            function startDrag(e, blockType, blockElement, optionElement) {
+                if (currentTurnPlayerId !== playerId) return;
+                
+                e.preventDefault();
+                e.stopPropagation();
+                
+                draggedBlock = blockElement.cloneNode(true);
+                draggedBlockType = blockType;
+                draggedBlockOption = optionElement;
+                document.body.appendChild(draggedBlock);
+                
+                const blockRect = blockElement.getBoundingClientRect();
+                const mouseX = e.clientX;
+                const mouseY = e.clientY;
+                
+                draggedBlockOffset = {
+                    x: mouseX - blockRect.left,
+                    y: mouseY - blockRect.top
+                };
+                
+                draggedBlock.style.position = 'absolute';
+                draggedBlock.style.zIndex = '100';
+                draggedBlock.style.cursor = 'grabbing';
+                draggedBlock.style.pointerEvents = 'none';
+                
+                moveBlock(e);
+                
+                document.addEventListener('mousemove', moveBlock);
+                document.addEventListener('mouseup', dropBlock);
+            }
+            
+            // Move block with mouse
+            function moveBlock(e) {
+                if (!draggedBlock) return;
+                
+                e.preventDefault();
+                draggedBlock.style.left = (e.clientX - draggedBlockOffset.x) + 'px';
+                draggedBlock.style.top = (e.clientY - draggedBlockOffset.y) + 'px';
+            }
+            
+            // Drop block on board
+            function dropBlock(e) {
+                if (!draggedBlock || currentTurnPlayerId !== playerId) return;
+                
+                e.preventDefault();
+                document.removeEventListener('mousemove', moveBlock);
+                document.removeEventListener('mouseup', dropBlock);
+                
+                const boardRect = gameBoard.getBoundingClientRect();
+                const blockLeft = e.clientX - draggedBlockOffset.x;
+                const blockTop = e.clientY - draggedBlockOffset.y;
+                const x = Math.floor((blockLeft - boardRect.left) / cellSize);
+                const y = Math.floor((blockTop - boardRect.top) / cellSize);
+                
+                if (canPlaceBlock(draggedBlockType, x, y)) {
+                    // Update local board first
+                    placeBlock(draggedBlockType, x, y);
+                    
+                    // Update Firebase board
+                    boardRef.set(board).then(() => {
+                        checkCompletedLines();
+                        
+                        // Mark block as used
+                        draggedBlockOption.classList.add('used');
+                        usedBlocksCount++;
+                        blocksUsedElement.textContent = `${usedBlocksCount}/3`;
+                        
+                        // If all blocks used, generate new ones
+                        if (usedBlocksCount === 3) {
+                            generateBlockOptions();
+                        }
+                        
+                        // Check if player can still make moves
+                        if (!hasValidMoves()) {
+                            playersRef.child(playerId).update({ canPlay: false });
+                            gameOverElement.style.display = 'block';
+                            gameOverElement.textContent = "Du hast verloren!";
+                            gameOverElement.addEventListener('click', () => {
+                                gameOverElement.style.display = 'none';
+                            });
+                        }
+                        
+                        // Pass turn to next player
+                        passTurn();
+                    });
+                }
+                
+                // Remove dragged block
+                draggedBlock.remove();
+                draggedBlock = null;
+                draggedBlockType = null;
+                draggedBlockOption = null;
+            }
+            
+            // Pass turn to next player
+            function passTurn() {
+                playersRef.once('value').then((snapshot) => {
+                    const players = snapshot.val();
+                    const playerIds = Object.keys(players);
+                    const currentIndex = playerIds.indexOf(currentTurnPlayerId);
+                    let nextIndex = (currentIndex + 1) % playerIds.length;
+                    
+                    // Find next player who can still play
+                    let attempts = 0;
+                    while (attempts < playerIds.length) {
+                        if (players[playerIds[nextIndex]].canPlay) {
+                            break;
+                        }
+                        nextIndex = (nextIndex + 1) % playerIds.length;
+                        attempts++;
+                    }
+                    
+                    // If no players can play, game is over
+                    if (attempts >= playerIds.length) {
+                        gameRef.update({ status: 'finished' });
+                        gameOverElement.style.display = 'block';
+                        gameOverElement.textContent = "Spiel beendet!";
+                        gameOverElement.addEventListener('click', () => {
+                            gameOverElement.style.display = 'none';
+                        });
+                        return;
+                    }
+                    
+                    // Update turn
+                    gameRef.update({ currentTurn: playerIds[nextIndex] });
+                });
+            }
+            
+            // Check if block can be placed
+            function canPlaceBlock(block, startX, startY) {
+                for (let y = 0; y < block.shape.length; y++) {
+                    for (let x = 0; x < block.shape[y].length; x++) {
+                        if (block.shape[y][x]) {
+                            const boardX = startX + x;
+                            const boardY = startY + y;
+                            
+                            if (boardX < 0 || boardX >= boardSize || boardY < 0 || boardY >= boardSize) {
+                                return false;
+                            }
+                            
+                            if (board[boardY][boardX] !== 0) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                return true;
+            }
+            
+            // Place block on board
+            function placeBlock(block, startX, startY) {
+                for (let y = 0; y < block.shape.length; y++) {
+                    for (let x = 0; x < block.shape[y].length; x++) {
+                        if (block.shape[y][x]) {
+                            const boardX = startX + x;
+                            const boardY = startY + y;
+                            board[boardY][boardX] = block.color;
+                        }
+                    }
+                }
+            }
+            
+            // Update board display
+            function updateBoard() {
+                const cells = document.querySelectorAll('#game-board .cell');
+                for (let y = 0; y < boardSize; y++) {
+                    for (let x = 0; x < boardSize; x++) {
+                        const index = y * boardSize + x;
+                        cells[index].style.backgroundColor = board[y][x] || 'white';
+                    }
+                }
+            }
+            
+            // Show score animation
+            function showScoreAnimation(scoreToAdd, x, y) {
+                const scoreAnim = document.createElement('div');
+                scoreAnim.className = 'score-added';
+                scoreAnim.textContent = `+${scoreToAdd}`;
+                scoreAnim.style.left = `${x}px`;
+                scoreAnim.style.top = `${y}px`;
+                document.body.appendChild(scoreAnim);
+                
+                setTimeout(() => {
+                    scoreAnim.remove();
+                }, 1000);
+            }
+            
+            // Check for completed lines
+            function checkCompletedLines() {
+                let completedRows = [];
+                let completedCols = [];
+                
+                // Check rows
+                for (let y = 0; y < boardSize; y++) {
+                    if (board[y].every(cell => cell !== 0)) {
+                        completedRows.push(y);
+                    }
+                }
+                
+                // Check columns
+                for (let x = 0; x < boardSize; x++) {
+                    let complete = true;
+                    for (let y = 0; y < boardSize; y++) {
+                        if (board[y][x] === 0) {
+                            complete = false;
+                            break;
+                        }
+                    }
+                    if (complete) completedCols.push(x);
+                }
+                
+                const linesCleared = completedRows.length + completedCols.length;
+                
+                if (linesCleared > 0) {
+                    // Animate clearing
+                    const cells = document.querySelectorAll('#game-board .cell');
+                    
+                    for (const row of completedRows) {
+                        for (let x = 0; x < boardSize; x++) {
+                            const index = row * boardSize + x;
+                            cells[index].classList.add('clearing');
+                        }
+                    }
+                    
+                    for (const col of completedCols) {
+                        for (let y = 0; y < boardSize; y++) {
+                            const index = y * boardSize + col;
+                            cells[index].classList.add('clearing');
+                        }
+                    }
+                    
+                    // Update score
+                    playersRef.child(playerId).once('value').then((snapshot) => {
+                        const player = snapshot.val();
+                        const newScore = player.score + (linesCleared * 10);
+                        playersRef.child(playerId).update({ score: newScore });
+                        scoreElement.textContent = newScore;
+                        
+                        // Show score animation
+                        const boardRect = gameBoard.getBoundingClientRect();
+                        showScoreAnimation(linesCleared * 10, boardRect.left + boardRect.width / 2, boardRect.top + boardRect.height / 2);
+                    });
+                    
+                    // Clear lines after animation
+                    setTimeout(() => {
+                        for (const row of completedRows) {
+                            for (let x = 0; x < boardSize; x++) {
+                                board[row][x] = 0;
+                            }
+                        }
+                        
+                        for (const col of completedCols) {
+                            for (let y = 0; y < boardSize; y++) {
+                                board[y][col] = 0;
+                            }
+                        }
+                        
+                        // Update Firebase board
+                        boardRef.set(board);
+                        
+                        // Remove animation classes
+                        cells.forEach(cell => cell.classList.remove('clearing'));
+                    }, 500);
+                }
+            }
+            
+            // Check for valid moves
+            function hasValidMoves() {
+                for (let i = 0; i < availableBlocks.length; i++) {
+                    if (!blockOptions[i].classList.contains('used') && hasValidPlacement(availableBlocks[i])) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            function hasValidPlacement(block) {
+                for (let y = 0; y < boardSize; y++) {
+                    for (let x = 0; x < boardSize; x++) {
+                        if (canPlaceBlock(block, x, y)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            
+            // Event listeners
+            createGameBtn.addEventListener('click', createGame);
+            joinGameBtn.addEventListener('click', () => {
+                document.getElementById('join-create-buttons').style.display = 'none';
+                joinForm.style.display = 'block';
+            });
+            confirmJoinBtn.addEventListener('click', () => {
+                const code = roomCodeInput.value.trim().toUpperCase();
+                if (code.length === 4) {
+                    joinGame(code);
+                } else {
+                    alert('Ungültiger Raumcode!');
+                }
+            });
+            cancelJoinBtn.addEventListener('click', () => {
+                joinForm.style.display = 'none';
+                document.getElementById('join-create-buttons').style.display = 'block';
+            });
+            startGameBtn.addEventListener('click', startGame);
+            leaveGameBtn.addEventListener('click', leaveGame);
+        });
+    </script>
+</body>
+</html>
