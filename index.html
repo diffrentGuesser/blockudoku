@@ -281,7 +281,6 @@
     
     <div id="game-area" style="display: none;">
         <div class="score">Punkte: <span id="score">0</span></div>
-        <div class="blocks-used">Verwendete Blöcke: <span id="blocks-used">0/3</span></div>
         <div class="game-status" id="turn-status"></div>
         
         <div class="game-container">
@@ -289,10 +288,8 @@
             
             <div class="blocks-container">
                 <div class="block-options">
-                    <h3>Wähle einen Block:</h3>
-                    <div id="block-option-1" class="block-option"></div>
-                    <div id="block-option-2" class="block-option"></div>
-                    <div id="block-option-3" class="block-option"></div>
+                    <h3>Dein Block:</h3>
+                    <div id="current-block" class="block-option"></div>
                 </div>
             </div>
         </div>
@@ -311,7 +308,7 @@
             <button id="cancel-join-btn">Abbrechen</button>
         </div>
         <p><strong>Spielanleitung:</strong> Erstelle oder trete einem Spiel bei. Wenn alle Spieler bereit sind, startet der Ersteller das Spiel. 
-        Spieler sind abwechselnd an der Reihe. Wer keinen gültigen Zug mehr machen kann, verliert!</p>
+        Jeder Spieler kann genau einen Block pro Runde platzieren. Wer keinen gültigen Zug mehr machen kann, verliert!</p>
     </div>
     
     <!-- Firebase SDK -->
@@ -356,6 +353,7 @@
             const gameArea = document.getElementById('game-area');
             const gameStatus = document.getElementById('game-status');
             const turnStatus = document.getElementById('turn-status');
+            const currentBlockOption = document.getElementById('current-block');
             
             // Game state
             let playerId;
@@ -365,22 +363,16 @@
             let gameRef;
             let playersRef;
             let boardRef;
-            let blocksRef;
             let currentTurnPlayerId;
             let gameStarted = false;
             let gameBoard;
-            let blockOptions;
             let scoreElement;
-            let blocksUsedElement;
             let gameOverElement;
             let board = Array(boardSize).fill().map(() => Array(boardSize).fill(0));
             let score = 0;
-            let availableBlocks = [];
-            let usedBlocksCount = 0;
+            let currentBlock = null;
             let draggedBlock = null;
-            let draggedBlockType = null;
             let draggedBlockOffset = { x: 0, y: 0 };
-            let draggedBlockOption = null;
             
             // Block-Typen
             const blockTypes = [
@@ -401,32 +393,11 @@
             // Initialize game UI
             function initGameUI() {
                 gameBoard = document.getElementById('game-board');
-                blockOptions = [
-                    document.getElementById('block-option-1'),
-                    document.getElementById('block-option-2'),
-                    document.getElementById('block-option-3')
-                ];
                 scoreElement = document.getElementById('score');
-                blocksUsedElement = document.getElementById('blocks-used');
                 gameOverElement = document.getElementById('game-over');
                 
                 initBoard();
-                
-                // Initialize blocks reference and listener
-                blocksRef = gameRef.child('blocks');
-                blocksRef.on('value', (snapshot) => {
-                    const blocksData = snapshot.val() || {};
-                    usedBlocksCount = blocksData.usedCount || 0;
-                    blocksUsedElement.textContent = `${usedBlocksCount}/3`;
-                    
-                    // Generate new blocks if needed
-                    if (usedBlocksCount === 3) {
-                        generateBlockOptions();
-                        blocksRef.update({ usedCount: 0 });
-                    }
-                });
-                
-                generateBlockOptions();
+                generateNewBlock();
                 updateBoard();
             }
             
@@ -466,8 +437,7 @@
                     status: 'waiting',
                     currentTurn: null,
                     board: Array(boardSize).fill().map(() => Array(boardSize).fill(0)),
-                    players: {},
-                    blocks: { usedCount: 0 }
+                    players: {}
                 });
                 
                 // Add host player
@@ -561,6 +531,11 @@
                         gameRef.child('currentTurn').on('value', (turnSnapshot) => {
                             currentTurnPlayerId = turnSnapshot.val();
                             updateTurnStatus();
+                            
+                            // Generate new block when it's our turn
+                            if (currentTurnPlayerId === playerId) {
+                                generateNewBlock();
+                            }
                         });
                     }
                 });
@@ -593,6 +568,7 @@
                         
                         playerElement.innerHTML = `
                             <span>${player.name}</span>
+                            <span>Punkte: ${player.score || 0}</span>
                             <span>${player.isHost ? '(Host)' : ''}</span>
                         `;
                         
@@ -608,32 +584,12 @@
                 playersRef.child(currentTurnPlayerId).once('value').then((snapshot) => {
                     const player = snapshot.val();
                     if (playerId === currentTurnPlayerId) {
-                        turnStatus.textContent = "Du bist am Zug!";
+                        turnStatus.textContent = "Du bist am Zug! Platziere deinen Block.";
                         turnStatus.style.color = "green";
-                        enableBlockOptions();
                     } else {
                         turnStatus.textContent = `${player.name} ist am Zug...`;
                         turnStatus.style.color = "black";
-                        disableBlockOptions();
                     }
-                });
-            }
-            
-            // Enable block options for current player
-            function enableBlockOptions() {
-                blockOptions.forEach(option => {
-                    if (!option.classList.contains('used')) {
-                        option.style.pointerEvents = 'auto';
-                        option.style.opacity = '1';
-                    }
-                });
-            }
-            
-            // Disable block options for other players
-            function disableBlockOptions() {
-                blockOptions.forEach(option => {
-                    option.style.pointerEvents = 'none';
-                    option.style.opacity = '0.5';
                 });
             }
             
@@ -687,7 +643,6 @@
                     gameRef.off();
                     playersRef.off();
                     boardRef.off();
-                    if (blocksRef) blocksRef.off();
                 }
             }
             
@@ -730,6 +685,25 @@
                 return transformedBlock;
             }
             
+            // Generate a new random block for the current player
+            function generateNewBlock() {
+                if (currentTurnPlayerId !== playerId) return;
+                
+                const randomIndex = Math.floor(Math.random() * blockTypes.length);
+                currentBlock = randomTransform(blockTypes[randomIndex]);
+                
+                currentBlockOption.innerHTML = '';
+                currentBlockOption.classList.remove('used');
+                const blockElement = createBlockElement(currentBlock);
+                currentBlockOption.appendChild(blockElement);
+                
+                blockElement.addEventListener('mousedown', (e) => {
+                    if (currentTurnPlayerId === playerId) {
+                        startDrag(e, currentBlock, blockElement);
+                    }
+                });
+            }
+            
             // Initialize the board
             function initBoard() {
                 gameBoard.innerHTML = '';
@@ -742,34 +716,6 @@
                         gameBoard.appendChild(cell);
                     }
                 }
-            }
-            
-            // Generate block options
-            function generateBlockOptions() {
-                availableBlocks = [];
-                
-                while (availableBlocks.length < 3) {
-                    const randomIndex = Math.floor(Math.random() * blockTypes.length);
-                    const blockType = blockTypes[randomIndex];
-                    
-                    if (!availableBlocks.some(b => b.name === blockType.name)) {
-                        const transformedBlock = randomTransform(blockType);
-                        availableBlocks.push(transformedBlock);
-                    }
-                }
-                
-                blockOptions.forEach((option, index) => {
-                    option.innerHTML = '';
-                    option.classList.remove('used');
-                    const blockElement = createBlockElement(availableBlocks[index]);
-                    option.appendChild(blockElement);
-                    
-                    blockElement.addEventListener('mousedown', (e) => {
-                        if (!option.classList.contains('used') && currentTurnPlayerId === playerId) {
-                            startDrag(e, availableBlocks[index], blockElement, option);
-                        }
-                    });
-                });
             }
             
             // Create a block element
@@ -804,15 +750,13 @@
             }
             
             // Start dragging a block
-            function startDrag(e, blockType, blockElement, optionElement) {
+            function startDrag(e, block, blockElement) {
                 if (currentTurnPlayerId !== playerId) return;
                 
                 e.preventDefault();
                 e.stopPropagation();
                 
                 draggedBlock = blockElement.cloneNode(true);
-                draggedBlockType = blockType;
-                draggedBlockOption = optionElement;
                 document.body.appendChild(draggedBlock);
                 
                 const blockRect = blockElement.getBoundingClientRect();
@@ -858,23 +802,16 @@
                 const x = Math.floor((blockLeft - boardRect.left) / cellSize);
                 const y = Math.floor((blockTop - boardRect.top) / cellSize);
                 
-                if (canPlaceBlock(draggedBlockType, x, y)) {
+                if (canPlaceBlock(currentBlock, x, y)) {
                     // Update local board first
-                    placeBlock(draggedBlockType, x, y);
+                    placeBlock(currentBlock, x, y);
                     
                     // Update Firebase board
                     boardRef.set(board).then(() => {
                         checkCompletedLines();
                         
                         // Mark block as used
-                        draggedBlockOption.classList.add('used');
-                        
-                        // Update blocks used count in Firebase
-                        blocksRef.transaction((currentData) => {
-                            const data = currentData || { usedCount: 0 };
-                            data.usedCount = (data.usedCount || 0) + 1;
-                            return data;
-                        });
+                        currentBlockOption.classList.add('used');
                         
                         // Check if player can still make moves
                         if (!hasValidMoves()) {
@@ -894,8 +831,6 @@
                 // Remove dragged block
                 draggedBlock.remove();
                 draggedBlock = null;
-                draggedBlockType = null;
-                draggedBlockOption = null;
             }
             
             // Pass turn to next player
@@ -1072,18 +1007,11 @@
             
             // Check for valid moves
             function hasValidMoves() {
-                for (let i = 0; i < availableBlocks.length; i++) {
-                    if (!blockOptions[i].classList.contains('used') && hasValidPlacement(availableBlocks[i])) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            
-            function hasValidPlacement(block) {
+                if (!currentBlock) return false;
+                
                 for (let y = 0; y < boardSize; y++) {
                     for (let x = 0; x < boardSize; x++) {
-                        if (canPlaceBlock(block, x, y)) {
+                        if (canPlaceBlock(currentBlock, x, y)) {
                             return true;
                         }
                     }
