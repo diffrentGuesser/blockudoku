@@ -749,7 +749,7 @@
                     option.appendChild(blockElement);
                     
                     blockElement.addEventListener('mousedown', (e) => {
-                        if (!option.classList.contains('used')) {  // This line was missing a closing parenthesis
+                        if (!option.classList.contains('used') && currentTurnPlayerId === playerId) {
                             startDrag(e, availableBlocks[index], blockElement, option);
                         }
                     });
