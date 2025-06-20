@@ -365,6 +365,7 @@
             let gameRef;
             let playersRef;
             let boardRef;
+            let blocksRef;
             let currentTurnPlayerId;
             let gameStarted = false;
             let gameBoard;
@@ -410,6 +411,21 @@
                 gameOverElement = document.getElementById('game-over');
                 
                 initBoard();
+                
+                // Initialize blocks reference and listener
+                blocksRef = gameRef.child('blocks');
+                blocksRef.on('value', (snapshot) => {
+                    const blocksData = snapshot.val() || {};
+                    usedBlocksCount = blocksData.usedCount || 0;
+                    blocksUsedElement.textContent = `${usedBlocksCount}/3`;
+                    
+                    // Generate new blocks if needed
+                    if (usedBlocksCount === 3) {
+                        generateBlockOptions();
+                        blocksRef.update({ usedCount: 0 });
+                    }
+                });
+                
                 generateBlockOptions();
                 updateBoard();
             }
@@ -450,7 +466,8 @@
                     status: 'waiting',
                     currentTurn: null,
                     board: Array(boardSize).fill().map(() => Array(boardSize).fill(0)),
-                    players: {}
+                    players: {},
+                    blocks: { usedCount: 0 }
                 });
                 
                 // Add host player
@@ -670,6 +687,7 @@
                     gameRef.off();
                     playersRef.off();
                     boardRef.off();
+                    if (blocksRef) blocksRef.off();
                 }
             }
             
@@ -729,8 +747,6 @@
             // Generate block options
             function generateBlockOptions() {
                 availableBlocks = [];
-                usedBlocksCount = 0;
-                blocksUsedElement.textContent = '0/3';
                 
                 while (availableBlocks.length < 3) {
                     const randomIndex = Math.floor(Math.random() * blockTypes.length);
@@ -852,13 +868,13 @@
                         
                         // Mark block as used
                         draggedBlockOption.classList.add('used');
-                        usedBlocksCount++;
-                        blocksUsedElement.textContent = `${usedBlocksCount}/3`;
                         
-                        // If all blocks used, generate new ones
-                        if (usedBlocksCount === 3) {
-                            generateBlockOptions();
-                        }
+                        // Update blocks used count in Firebase
+                        blocksRef.transaction((currentData) => {
+                            const data = currentData || { usedCount: 0 };
+                            data.usedCount = (data.usedCount || 0) + 1;
+                            return data;
+                        });
                         
                         // Check if player can still make moves
                         if (!hasValidMoves()) {
