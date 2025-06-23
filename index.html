@@ -291,9 +291,6 @@
             flex-direction: column;
             gap: 10px;
             margin-top: 10px;
-            background-color: #f1f1f1;
-            padding: 10px;
-            border-radius: 5px;
         }
         
         .team-btn {
@@ -307,6 +304,29 @@
             background-color: #4285F4;
             color: white;
             border-color: #3367D6;
+        }
+        
+        .team-display {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+        
+        .team-score {
+            font-size: 18px;
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+        
+        .team-1 {
+            background-color: #FFEB3B;
+            color: #333;
+        }
+        
+        .team-2 {
+            background-color: #9C27B0;
+            color: white;
         }
     </style>
 </head>
@@ -323,14 +343,14 @@
                 <div class="game-mode-selector">
                     <button id="point-mode-btn" class="game-mode-btn selected">Punkte-Modus</button>
                     <button id="loss-mode-btn" class="game-mode-btn">Verlust-Modus</button>
-                    <button id="team-mode-btn" class="game-mode-btn">Teamplay</button>
+                    <button id="team-mode-btn" class="game-mode-btn">Team-Modus</button>
                 </div>
             </div>
             <div id="team-selector" class="team-selector">
-                <h3>Team auswählen:</h3>
+                <h3>Team wählen:</h3>
                 <div class="game-mode-selector">
-                    <button id="team1-btn" class="team-btn">Team 1</button>
-                    <button id="team2-btn" class="team-btn">Team 2</button>
+                    <button id="team-1-btn" class="team-btn">Team Gelb</button>
+                    <button id="team-2-btn" class="team-btn">Team Lila</button>
                 </div>
             </div>
             <button id="start-game-btn" disabled>Spiel starten</button>
@@ -340,6 +360,10 @@
     
     <div id="game-area" style="display: none;">
         <div class="score">Punkte: <span id="score">0</span></div>
+        <div class="team-display">
+            <div class="team-score team-1">Team Gelb: <span id="team-1-score">0</span></div>
+            <div class="team-score team-2">Team Lila: <span id="team-2-score">0</span></div>
+        </div>
         <div class="game-status" id="turn-status"></div>
         <div class="game-status" id="game-mode-display"></div>
         
@@ -370,7 +394,7 @@
         <p><strong>Spielanleitung:</strong> Erstelle oder trete einem Spiel bei. Der Ersteller wählt den Spielmodus:
         <br>- <strong>Punkte-Modus:</strong> Wer die meisten Punkte hat, gewinnt
         <br>- <strong>Verlust-Modus:</strong> Wer keinen Block mehr platzieren kann, verliert
-        <br>- <strong>Teamplay:</strong> Spieler arbeiten in Teams zusammen, Punkte werden zusammengezählt
+        <br>- <strong>Team-Modus:</strong> Punkte werden im Team gezählt, Spiel endet wenn kein Team mehr spielen kann
         <br>Jeder Spieler platziert einen Block pro Runde.</p>
     </div>
     
@@ -423,8 +447,10 @@
             const teamModeBtn = document.getElementById('team-mode-btn');
             const gameModeSelector = document.getElementById('game-mode-selector');
             const teamSelector = document.getElementById('team-selector');
-            const team1Btn = document.getElementById('team1-btn');
-            const team2Btn = document.getElementById('team2-btn');
+            const team1Btn = document.getElementById('team-1-btn');
+            const team2Btn = document.getElementById('team-2-btn');
+            const team1Score = document.getElementById('team-1-score');
+            const team2Score = document.getElementById('team-2-score');
             
             // Game state
             let playerId;
@@ -445,7 +471,7 @@
             let draggedBlock = null;
             let draggedBlockOffset = { x: 0, y: 0 };
             let gameMode = 'point'; // 'point', 'loss' or 'team'
-            let team = null; // 'team1' or 'team2'
+            let playerTeam = null;
             
             // Block-Typen
             const blockTypes = [
@@ -476,11 +502,37 @@
                 // Display game mode
                 if (gameMode === 'point') {
                     gameModeDisplay.textContent = "Modus: Punkte-Modus (höchste Punktzahl gewinnt)";
+                    document.querySelector('.team-display').style.display = 'none';
                 } else if (gameMode === 'loss') {
                     gameModeDisplay.textContent = "Modus: Verlust-Modus (wer keinen Zug hat, verliert)";
+                    document.querySelector('.team-display').style.display = 'none';
                 } else {
-                    gameModeDisplay.textContent = "Modus: Teamplay (Punkte werden im Team zusammengezählt)";
+                    gameModeDisplay.textContent = "Modus: Team-Modus (Team mit höchster Punktzahl gewinnt)";
+                    document.querySelector('.team-display').style.display = 'flex';
+                    updateTeamScores();
                 }
+            }
+            
+            // Update team scores display
+            function updateTeamScores() {
+                if (gameMode !== 'team') return;
+                
+                playersRef.once('value').then((snapshot) => {
+                    const players = snapshot.val();
+                    let team1Total = 0;
+                    let team2Total = 0;
+                    
+                    Object.values(players).forEach(player => {
+                        if (player.team === 1) {
+                            team1Total += player.score || 0;
+                        } else if (player.team === 2) {
+                            team2Total += player.score || 0;
+                        }
+                    });
+                    
+                    team1Score.textContent = team1Total;
+                    team2Score.textContent = team2Total;
+                });
             }
             
             // Generate random player name
@@ -529,7 +581,7 @@
                     score: 0,
                     isHost: true,
                     canPlay: true,
-                    team: team
+                    team: playerTeam
                 });
                 
                 // Set up listeners
@@ -541,6 +593,10 @@
                 roomCodeDisplay.textContent = `Raumcode: ${roomCode}`;
                 startGameBtn.disabled = false;
                 gameModeSelector.style.display = 'block';
+                
+                if (gameMode === 'team') {
+                    teamSelector.style.display = 'flex';
+                }
                 
                 // Show player list
                 updatePlayerList();
@@ -571,13 +627,37 @@
                         return;
                     }
                     
+                    // Check if team mode and select team automatically
+                    if (gameData.gameMode === 'team') {
+                        // Count players in each team
+                        let team1Count = 0;
+                        let team2Count = 0;
+                        
+                        if (gameData.players) {
+                            Object.values(gameData.players).forEach(player => {
+                                if (player.team === 1) team1Count++;
+                                if (player.team === 2) team2Count++;
+                            });
+                        }
+                        
+                        // Assign to team with fewer players
+                        playerTeam = team1Count <= team2Count ? 1 : 2;
+                        teamSelector.style.display = 'flex';
+                        
+                        if (playerTeam === 1) {
+                            team1Btn.classList.add('selected');
+                        } else {
+                            team2Btn.classList.add('selected');
+                        }
+                    }
+                    
                     // Add player
                     playersRef.child(playerId).set({
                         name: playerName,
                         score: 0,
                         isHost: false,
                         canPlay: true,
-                        team: team
+                        team: playerTeam
                     });
                     
                     // Set up listeners
@@ -592,11 +672,6 @@
                     
                     // Show player list
                     updatePlayerList();
-                    
-                    // Show team selector if in team mode
-                    if (gameData.gameMode === 'team') {
-                        teamSelector.style.display = 'flex';
-                    }
                 });
             }
             
@@ -605,6 +680,9 @@
                 // Listen for players changes
                 playersRef.on('value', (snapshot) => {
                     updatePlayerList();
+                    if (gameMode === 'team') {
+                        updateTeamScores();
+                    }
                 });
                 
                 // Listen for game status changes
@@ -664,7 +742,7 @@
                         
                         let teamInfo = '';
                         if (gameMode === 'team' && player.team) {
-                            teamInfo = ` (${player.team === 'team1' ? 'Team 1' : 'Team 2'})`;
+                            teamInfo = player.team === 1 ? ' (Team Gelb)' : ' (Team Lila)';
                         }
                         
                         playerElement.innerHTML = `
@@ -708,13 +786,24 @@
                         return;
                     }
                     
-                    // In team mode, make sure players have selected teams
+                    // In team mode, check teams are balanced
                     if (gameMode === 'team') {
-                        for (const playerId of playerIds) {
-                            if (!players[playerId].team) {
-                                alert('Alle Spieler müssen ein Team auswählen!');
-                                return;
-                            }
+                        let team1Count = 0;
+                        let team2Count = 0;
+                        
+                        Object.values(players).forEach(player => {
+                            if (player.team === 1) team1Count++;
+                            if (player.team === 2) team2Count++;
+                        });
+                        
+                        if (team1Count === 0 || team2Count === 0) {
+                            alert('Beide Teams müssen mindestens einen Spieler haben!');
+                            return;
+                        }
+                        
+                        if (Math.abs(team1Count - team2Count) > 1) {
+                            alert('Teams sollten ausgeglichen sein!');
+                            return;
                         }
                     }
                     
@@ -950,20 +1039,47 @@
                         const nextPlayerId = playerIds[nextIndex];
                         const nextPlayer = players[nextPlayerId];
                         
-                        // In point mode, all players keep playing until no one can move
-                        // In loss mode, players are eliminated when they can't move
-                        // In team mode, players are grouped by team
-                        if (gameMode === 'point' || 
-                            (gameMode === 'loss' && nextPlayer.canPlay) ||
-                            (gameMode === 'team' && nextPlayer.canPlay)) {
-                            
-                            // Check if player has valid moves
+                        if (gameMode === 'point') {
+                            // All players keep playing until no one can move
                             if (hasValidMovesForPlayer(nextPlayerId)) {
                                 break;
-                            } else {
-                                // Player can't move - in loss mode they're out
-                                if (gameMode === 'loss') {
+                            }
+                        } else if (gameMode === 'loss') {
+                            // Players are eliminated when they can't move
+                            if (nextPlayer.canPlay) {
+                                if (hasValidMovesForPlayer(nextPlayerId)) {
+                                    break;
+                                } else {
                                     playersRef.child(nextPlayerId).update({ canPlay: false });
+                                }
+                            }
+                        } else if (gameMode === 'team') {
+                            // Team members take turns, team is out when all members can't move
+                            if (nextPlayer.canPlay) {
+                                if (hasValidMovesForPlayer(nextPlayerId)) {
+                                    break;
+                                } else {
+                                    // Check if all team members can't move
+                                    const team = nextPlayer.team;
+                                    let teamCanPlay = false;
+                                    
+                                    for (const playerId of playerIds) {
+                                        const player = players[playerId];
+                                        if (player.team === team && player.canPlay && hasValidMovesForPlayer(playerId)) {
+                                            teamCanPlay = true;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if (!teamCanPlay) {
+                                        // Mark all team members as can't play
+                                        for (const playerId of playerIds) {
+                                            const player = players[playerId];
+                                            if (player.team === team) {
+                                                playersRef.child(playerId).update({ canPlay: false });
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1027,23 +1143,22 @@
                         if (activePlayers <= 1) {
                             endGame();
                         }
-                    } else {
-                        // In team mode, game ends when no team can place a block
-                        let team1CanPlay = false;
-                        let team2CanPlay = false;
+                    } else if (gameMode === 'team') {
+                        // In team mode, game ends when only one team remains or no one can play
+                        let team1Active = false;
+                        let team2Active = false;
+                        let anyCanPlay = false;
                         
                         for (const playerId of playerIds) {
                             const player = players[playerId];
-                            if (player.canPlay) {
-                                if (player.team === 'team1' && hasValidMovesForPlayer(playerId)) {
-                                    team1CanPlay = true;
-                                } else if (player.team === 'team2' && hasValidMovesForPlayer(playerId)) {
-                                    team2CanPlay = true;
-                                }
+                            if (player.canPlay && hasValidMovesForPlayer(playerId)) {
+                                anyCanPlay = true;
+                                if (player.team === 1) team1Active = true;
+                                if (player.team === 2) team2Active = true;
                             }
                         }
                         
-                        if (!team1CanPlay && !team2CanPlay) {
+                        if (!anyCanPlay || (team1Active && !team2Active) || (!team1Active && team2Active)) {
                             endGame();
                         }
                     }
@@ -1077,267 +1192,284 @@
                         for (const playerId of playerIds) {
                             if (players[playerId].score === maxScore) {
                                 winners.push(players[playerId].name);
-                                               }
-
-                    if (winners.length === 1) {
-                        message += `Gewinner: ${winners[0]} mit ${maxScore} Punkten!`;
-                    } else {
-                        message += `Unentschieden zwischen ${winners.join(', ')} mit jeweils ${maxScore} Punkten!`;
+                            }
+                        }
+                        
+                        if (winners.length === 1) {
+                            message += `Gewinner: ${winners[0]} mit ${maxScore} Punkten!`;
+                        } else {
+                            message += `Unentschieden zwischen ${winners.join(', ')} mit jeweils ${maxScore} Punkten!`;
+                        }
+                    } else if (gameMode === 'loss') {
+                        // In loss mode, last remaining player wins
+                        for (const playerId of playerIds) {
+                            if (players[playerId].canPlay) {
+                                winnerId = playerId;
+                                break;
+                            }
+                        }
+                        
+                        if (winnerId) {
+                            message += `Gewinner: ${players[winnerId].name}!`;
+                        } else {
+                            message += "Unentschieden!";
+                        }
+                    } else if (gameMode === 'team') {
+                        // In team mode, team with highest score wins
+                        let team1Total = 0;
+                        let team2Total = 0;
+                        
+                        for (const playerId of playerIds) {
+                            const player = players[playerId];
+                            if (player.team === 1) team1Total += player.score || 0;
+                            if (player.team === 2) team2Total += player.score || 0;
+                        }
+                        
+                        if (team1Total > team2Total) {
+                            message += `Team Gelb gewinnt mit ${team1Total} Punkten!`;
+                        } else if (team2Total > team1Total) {
+                            message += `Team Lila gewinnt mit ${team2Total} Punkten!`;
+                        } else {
+                            message += "Unentschieden zwischen beiden Teams!";
+                        }
                     }
-                } else if (gameMode === 'loss') {
-                    // In loss mode, last remaining player wins
-                    for (const playerId of playerIds) {
-                        if (players[playerId].canPlay) {
-                            winnerId = playerId;
+                    
+                    gameOverElement.style.display = 'block';
+                    gameOverElement.textContent = message;
+                    gameOverElement.addEventListener('click', () => {
+                        gameOverElement.style.display = 'none';
+                    });
+                });
+            }
+            
+            // Check if block can be placed
+            function canPlaceBlock(block, startX, startY) {
+                for (let y = 0; y < block.shape.length; y++) {
+                    for (let x = 0; x < block.shape[y].length; x++) {
+                        if (block.shape[y][x]) {
+                            const boardX = startX + x;
+                            const boardY = startY + y;
+                            
+                            if (boardX < 0 || boardX >= boardSize || boardY < 0 || boardY >= boardSize) {
+                                return false;
+                            }
+                            
+                            if (board[boardY][boardX] !== 0) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                return true;
+            }
+            
+            // Place block on board
+            function placeBlock(block, startX, startY) {
+                for (let y = 0; y < block.shape.length; y++) {
+                    for (let x = 0; x < block.shape[y].length; x++) {
+                        if (block.shape[y][x]) {
+                            const boardX = startX + x;
+                            const boardY = startY + y;
+                            board[boardY][boardX] = block.color;
+                        }
+                    }
+                }
+            }
+            
+            // Update board display
+            function updateBoard() {
+                const cells = document.querySelectorAll('#game-board .cell');
+                for (let y = 0; y < boardSize; y++) {
+                    for (let x = 0; x < boardSize; x++) {
+                        const index = y * boardSize + x;
+                        cells[index].style.backgroundColor = board[y][x] || 'white';
+                    }
+                }
+            }
+            
+            // Show score animation
+            function showScoreAnimation(scoreToAdd, x, y) {
+                const scoreAnim = document.createElement('div');
+                scoreAnim.className = 'score-added';
+                scoreAnim.textContent = `+${scoreToAdd}`;
+                scoreAnim.style.left = `${x}px`;
+                scoreAnim.style.top = `${y}px`;
+                document.body.appendChild(scoreAnim);
+                
+                setTimeout(() => {
+                    scoreAnim.remove();
+                }, 1000);
+            }
+            
+            // Check for completed lines
+            function checkCompletedLines() {
+                let completedRows = [];
+                let completedCols = [];
+                
+                // Check rows
+                for (let y = 0; y < boardSize; y++) {
+                    if (board[y].every(cell => cell !== 0)) {
+                        completedRows.push(y);
+                    }
+                }
+                
+                // Check columns
+                for (let x = 0; x < boardSize; x++) {
+                    let complete = true;
+                    for (let y = 0; y < boardSize; y++) {
+                        if (board[y][x] === 0) {
+                            complete = false;
                             break;
                         }
                     }
+                    if (complete) completedCols.push(x);
+                }
+                
+                const linesCleared = completedRows.length + completedCols.length;
+                
+                if (linesCleared > 0) {
+                    // Animate clearing
+                    const cells = document.querySelectorAll('#game-board .cell');
                     
-                    if (winnerId) {
-                        message += `Gewinner: ${players[winnerId].name}!`;
-                    } else {
-                        message += "Unentschieden!";
-                    }
-                } else {
-                    // In team mode, team with highest score wins
-                    let team1Score = 0;
-                    let team2Score = 0;
-                    
-                    for (const playerId of playerIds) {
-                        const player = players[playerId];
-                        if (player.team === 'team1') {
-                            team1Score += player.score || 0;
-                        } else if (player.team === 'team2') {
-                            team2Score += player.score || 0;
-                        }
-                    }
-                    
-                    if (team1Score > team2Score) {
-                        message += `Team 1 gewinnt mit ${team1Score} Punkten! (Team 2: ${team2Score} Punkte)`;
-                    } else if (team2Score > team1Score) {
-                        message += `Team 2 gewinnt mit ${team2Score} Punkten! (Team 1: ${team1Score} Punkte)`;
-                    } else {
-                        message += `Unentschieden! Beide Teams haben ${team1Score} Punkte.`;
-                    }
-                }
-                
-                gameOverElement.style.display = 'block';
-                gameOverElement.textContent = message;
-                gameOverElement.addEventListener('click', () => {
-                    gameOverElement.style.display = 'none';
-                });
-            });
-        }
-        
-        // Check if block can be placed
-        function canPlaceBlock(block, startX, startY) {
-            for (let y = 0; y < block.shape.length; y++) {
-                for (let x = 0; x < block.shape[y].length; x++) {
-                    if (block.shape[y][x]) {
-                        const boardX = startX + x;
-                        const boardY = startY + y;
-                        
-                        if (boardX < 0 || boardX >= boardSize || boardY < 0 || boardY >= boardSize) {
-                            return false;
-                        }
-                        
-                        if (board[boardY][boardX] !== 0) {
-                            return false;
-                        }
-                    }
-                }
-            }
-            return true;
-        }
-        
-        // Place block on board
-        function placeBlock(block, startX, startY) {
-            for (let y = 0; y < block.shape.length; y++) {
-                for (let x = 0; x < block.shape[y].length; x++) {
-                    if (block.shape[y][x]) {
-                        const boardX = startX + x;
-                        const boardY = startY + y;
-                        board[boardY][boardX] = block.color;
-                    }
-                }
-            }
-        }
-        
-        // Update board display
-        function updateBoard() {
-            const cells = document.querySelectorAll('#game-board .cell');
-            for (let y = 0; y < boardSize; y++) {
-                for (let x = 0; x < boardSize; x++) {
-                    const index = y * boardSize + x;
-                    cells[index].style.backgroundColor = board[y][x] || 'white';
-                }
-            }
-        }
-        
-        // Show score animation
-        function showScoreAnimation(scoreToAdd, x, y) {
-            const scoreAnim = document.createElement('div');
-            scoreAnim.className = 'score-added';
-            scoreAnim.textContent = `+${scoreToAdd}`;
-            scoreAnim.style.left = `${x}px`;
-            scoreAnim.style.top = `${y}px`;
-            document.body.appendChild(scoreAnim);
-            
-            setTimeout(() => {
-                scoreAnim.remove();
-            }, 1000);
-        }
-        
-        // Check for completed lines
-        function checkCompletedLines() {
-            let completedRows = [];
-            let completedCols = [];
-            
-            // Check rows
-            for (let y = 0; y < boardSize; y++) {
-                if (board[y].every(cell => cell !== 0)) {
-                    completedRows.push(y);
-                }
-            }
-            
-            // Check columns
-            for (let x = 0; x < boardSize; x++) {
-                let complete = true;
-                for (let y = 0; y < boardSize; y++) {
-                    if (board[y][x] === 0) {
-                        complete = false;
-                        break;
-                    }
-                }
-                if (complete) completedCols.push(x);
-            }
-            
-            const linesCleared = completedRows.length + completedCols.length;
-            
-            if (linesCleared > 0) {
-                // Animate clearing
-                const cells = document.querySelectorAll('#game-board .cell');
-                
-                for (const row of completedRows) {
-                    for (let x = 0; x < boardSize; x++) {
-                        const index = row * boardSize + x;
-                        cells[index].classList.add('clearing');
-                    }
-                }
-                
-                for (const col of completedCols) {
-                    for (let y = 0; y < boardSize; y++) {
-                        const index = y * boardSize + col;
-                        cells[index].classList.add('clearing');
-                    }
-                }
-                
-                // Update score
-                playersRef.child(playerId).once('value').then((snapshot) => {
-                    const player = snapshot.val();
-                    const newScore = player.score + (linesCleared * 10);
-                    playersRef.child(playerId).update({ score: newScore });
-                    scoreElement.textContent = newScore;
-                    
-                    // Show score animation
-                    const boardRect = gameBoard.getBoundingClientRect();
-                    showScoreAnimation(linesCleared * 10, boardRect.left + boardRect.width / 2, boardRect.top + boardRect.height / 2);
-                });
-                
-                // Clear lines after animation
-                setTimeout(() => {
                     for (const row of completedRows) {
                         for (let x = 0; x < boardSize; x++) {
-                            board[row][x] = 0;
+                            const index = row * boardSize + x;
+                            cells[index].classList.add('clearing');
                         }
                     }
                     
                     for (const col of completedCols) {
                         for (let y = 0; y < boardSize; y++) {
-                            board[y][col] = 0;
+                            const index = y * boardSize + col;
+                            cells[index].classList.add('clearing');
                         }
                     }
                     
-                    // Update Firebase board
-                    boardRef.set(board);
+                    // Update score
+                    playersRef.child(playerId).once('value').then((snapshot) => {
+                        const player = snapshot.val();
+                        const newScore = player.score + (linesCleared * 10);
+                        playersRef.child(playerId).update({ score: newScore });
+                        scoreElement.textContent = newScore;
+                        
+                        // Update team scores if in team mode
+                        if (gameMode === 'team') {
+                            updateTeamScores();
+                        }
+                        
+                        // Show score animation
+                        const boardRect = gameBoard.getBoundingClientRect();
+                        showScoreAnimation(linesCleared * 10, boardRect.left + boardRect.width / 2, boardRect.top + boardRect.height / 2);
+                    });
                     
-                    // Remove animation classes
-                    cells.forEach(cell => cell.classList.remove('clearing'));
-                }, 500);
-            }
-        }
-        
-        // Check for valid moves with current block
-        function hasValidMoves() {
-            if (!currentBlock) return false;
-            
-            for (let y = 0; y < boardSize; y++) {
-                for (let x = 0; x < boardSize; x++) {
-                    if (canPlaceBlock(currentBlock, x, y)) {
-                        return true;
-                    }
+                    // Clear lines after animation
+                    setTimeout(() => {
+                        for (const row of completedRows) {
+                            for (let x = 0; x < boardSize; x++) {
+                                board[row][x] = 0;
+                            }
+                        }
+                        
+                        for (const col of completedCols) {
+                            for (let y = 0; y < boardSize; y++) {
+                                board[y][col] = 0;
+                            }
+                        }
+                        
+                        // Update Firebase board
+                        boardRef.set(board);
+                        
+                        // Remove animation classes
+                        cells.forEach(cell => cell.classList.remove('clearing'));
+                    }, 500);
                 }
             }
-            return false;
-        }
-        
-        // Event listeners
-        createGameBtn.addEventListener('click', createGame);
-        joinGameBtn.addEventListener('click', () => {
-            document.getElementById('join-create-buttons').style.display = 'none';
-            joinForm.style.display = 'block';
-        });
-        confirmJoinBtn.addEventListener('click', () => {
-            const code = roomCodeInput.value.trim().toUpperCase();
-            if (code.length === 4) {
-                joinGame(code);
-            } else {
-                alert('Ungültiger Raumcode!');
+            
+            // Check for valid moves with current block
+            function hasValidMoves() {
+                if (!currentBlock) return false;
+                
+                for (let y = 0; y < boardSize; y++) {
+                    for (let x = 0; x < boardSize; x++) {
+                        if (canPlaceBlock(currentBlock, x, y)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
             }
+            
+            // Event listeners
+            createGameBtn.addEventListener('click', createGame);
+            joinGameBtn.addEventListener('click', () => {
+                document.getElementById('join-create-buttons').style.display = 'none';
+                joinForm.style.display = 'block';
+            });
+            confirmJoinBtn.addEventListener('click', () => {
+                const code = roomCodeInput.value.trim().toUpperCase();
+                if (code.length === 4) {
+                    joinGame(code);
+                } else {
+                    alert('Ungültiger Raumcode!');
+                }
+            });
+            cancelJoinBtn.addEventListener('click', () => {
+                joinForm.style.display = 'none';
+                document.getElementById('join-create-buttons').style.display = 'block';
+            });
+            startGameBtn.addEventListener('click', startGame);
+            leaveGameBtn.addEventListener('click', leaveGame);
+            
+            // Game mode selection
+            pointModeBtn.addEventListener('click', () => {
+                gameMode = 'point';
+                pointModeBtn.classList.add('selected');
+                lossModeBtn.classList.remove('selected');
+                teamModeBtn.classList.remove('selected');
+                teamSelector.style.display = 'none';
+            });
+            
+            lossModeBtn.addEventListener('click', () => {
+                gameMode = 'loss';
+                lossModeBtn.classList.add('selected');
+                pointModeBtn.classList.remove('selected');
+                teamModeBtn.classList.remove('selected');
+                teamSelector.style.display = 'none';
+            });
+            
+            teamModeBtn.addEventListener('click', () => {
+                gameMode = 'team';
+                teamModeBtn.classList.add('selected');
+                pointModeBtn.classList.remove('selected');
+                lossModeBtn.classList.remove('selected');
+                teamSelector.style.display = 'flex';
+            });
+            
+            // Team selection
+            team1Btn.addEventListener('click', () => {
+                if (playerTeam !== 1) {
+                    playerTeam = 1;
+                    team1Btn.classList.add('selected');
+                    team2Btn.classList.remove('selected');
+                    
+                    if (gameRef) {
+                        playersRef.child(playerId).update({ team: 1 });
+                    }
+                }
+            });
+            
+            team2Btn.addEventListener('click', () => {
+                if (playerTeam !== 2) {
+                    playerTeam = 2;
+                    team2Btn.classList.add('selected');
+                    team1Btn.classList.remove('selected');
+                    
+                    if (gameRef) {
+                        playersRef.child(playerId).update({ team: 2 });
+                    }
+                }
+            });
         });
-        cancelJoinBtn.addEventListener('click', () => {
-            joinForm.style.display = 'none';
-            document.getElementById('join-create-buttons').style.display = 'block';
-        });
-        startGameBtn.addEventListener('click', startGame);
-        leaveGameBtn.addEventListener('click', leaveGame);
-        
-        // Game mode selection
-        pointModeBtn.addEventListener('click', () => {
-            gameMode = 'point';
-            pointModeBtn.classList.add('selected');
-            lossModeBtn.classList.remove('selected');
-            teamModeBtn.classList.remove('selected');
-            teamSelector.style.display = 'none';
-        });
-        
-        lossModeBtn.addEventListener('click', () => {
-            gameMode = 'loss';
-            lossModeBtn.classList.add('selected');
-            pointModeBtn.classList.remove('selected');
-            teamModeBtn.classList.remove('selected');
-            teamSelector.style.display = 'none';
-        });
-        
-        teamModeBtn.addEventListener('click', () => {
-            gameMode = 'team';
-            teamModeBtn.classList.add('selected');
-            pointModeBtn.classList.remove('selected');
-            lossModeBtn.classList.remove('selected');
-            teamSelector.style.display = 'flex';
-        });
-        
-        // Team selection
-        team1Btn.addEventListener('click', () => {
-            team = 'team1';
-            team1Btn.classList.add('selected');
-            team2Btn.classList.remove('selected');
-        });
-        
-        team2Btn.addEventListener('click', () => {
-            team = 'team2';
-            team2Btn.classList.add('selected');
-            team1Btn.classList.remove('selected');
-        });
-    });
-</script>
+    </script>
+</body>
+</html>
