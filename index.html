@@ -285,22 +285,6 @@
             color: white;
             border-color: #3367D6;
         }
-        
-        .team-selection {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 10px;
-            background-color: #f1f1f1;
-            padding: 10px;
-            border-radius: 5px;
-        }
-        
-        .team-option {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
     </style>
 </head>
 <body>
@@ -318,17 +302,6 @@
                     <button id="loss-mode-btn" class="game-mode-btn">Verlust-Modus</button>
                     <button id="team-mode-btn" class="game-mode-btn">Team-Modus</button>
                 </div>
-                <div id="team-selection" class="team-selection" style="display: none;">
-                    <h3>Teams:</h3>
-                    <div class="team-option">
-                        <input type="radio" id="team-red" name="team" value="red">
-                        <label for="team-red">Team Rot</label>
-                    </div>
-                    <div class="team-option">
-                        <input type="radio" id="team-blue" name="team" value="blue">
-                        <label for="team-blue">Team Blau</label>
-                    </div>
-                </div>
             </div>
             <button id="start-game-btn" disabled>Spiel starten</button>
             <button id="leave-game-btn">Lobby verlassen</button>
@@ -339,7 +312,6 @@
         <div class="score">Punkte: <span id="score">0</span></div>
         <div class="game-status" id="turn-status"></div>
         <div class="game-status" id="game-mode-display"></div>
-        <div class="game-status" id="team-display"></div>
         
         <div class="game-container">
             <div id="game-board"></div>
@@ -368,7 +340,7 @@
         <p><strong>Spielanleitung:</strong> Erstelle oder trete einem Spiel bei. Der Ersteller wählt den Spielmodus:
         <br>- <strong>Punkte-Modus:</strong> Wer die meisten Punkte hat, gewinnt
         <br>- <strong>Verlust-Modus:</strong> Wer keinen Block mehr platzieren kann, verliert
-        <br>- <strong>Team-Modus:</strong> Alle Punkte zählen für das Team, Spiel endet wenn kein Team mehr spielen kann
+        <br>- <strong>Team-Modus:</strong> Alle Spieler arbeiten zusammen, Punkte werden addiert, Spiel endet wenn kein Block mehr platziert werden kann
         <br>Jeder Spieler platziert einen Block pro Runde.</p>
     </div>
     
@@ -415,15 +387,11 @@
             const gameStatus = document.getElementById('game-status');
             const turnStatus = document.getElementById('turn-status');
             const gameModeDisplay = document.getElementById('game-mode-display');
-            const teamDisplay = document.getElementById('team-display');
             const currentBlockOption = document.getElementById('current-block');
             const pointModeBtn = document.getElementById('point-mode-btn');
             const lossModeBtn = document.getElementById('loss-mode-btn');
             const teamModeBtn = document.getElementById('team-mode-btn');
             const gameModeSelector = document.getElementById('game-mode-selector');
-            const teamSelection = document.getElementById('team-selection');
-            const teamRed = document.getElementById('team-red');
-            const teamBlue = document.getElementById('team-blue');
             
             // Game state
             let playerId;
@@ -444,7 +412,6 @@
             let draggedBlock = null;
             let draggedBlockOffset = { x: 0, y: 0 };
             let gameMode = 'point'; // 'point', 'loss' or 'team'
-            let playerTeam = null;
             
             // Block-Typen
             const blockTypes = [
@@ -478,19 +445,7 @@
                 } else if (gameMode === 'loss') {
                     gameModeDisplay.textContent = "Modus: Verlust-Modus (wer keinen Zug hat, verliert)";
                 } else {
-                    gameModeDisplay.textContent = "Modus: Team-Modus (Team mit den meisten Punkten gewinnt)";
-                }
-                
-                // Display team if in team mode
-                if (gameMode === 'team') {
-                    playersRef.child(playerId).once('value').then((snapshot) => {
-                        const player = snapshot.val();
-                        playerTeam = player.team;
-                        teamDisplay.textContent = `Dein Team: ${playerTeam === 'red' ? 'Rot' : 'Blau'}`;
-                        teamDisplay.style.color = playerTeam === 'red' ? '#FF5252' : '#4285F4';
-                    });
-                } else {
-                    teamDisplay.textContent = '';
+                    gameModeDisplay.textContent = "Modus: Team-Modus (alle arbeiten zusammen)";
                 }
             }
             
@@ -531,7 +486,8 @@
                     currentTurn: null,
                     board: Array(boardSize).fill().map(() => Array(boardSize).fill(0)),
                     players: {},
-                    gameMode: gameMode
+                    gameMode: gameMode,
+                    teamScore: 0
                 });
                 
                 // Add host player
@@ -539,8 +495,7 @@
                     name: playerName,
                     score: 0,
                     isHost: true,
-                    canPlay: true,
-                    team: playerTeam
+                    canPlay: true
                 });
                 
                 // Set up listeners
@@ -587,8 +542,7 @@
                         name: playerName,
                         score: 0,
                         isHost: false,
-                        canPlay: true,
-                        team: playerTeam
+                        canPlay: true
                     });
                     
                     // Set up listeners
@@ -652,6 +606,13 @@
                         }
                     }
                 });
+                
+                // Listen for team score changes (team mode only)
+                gameRef.child('teamScore').on('value', (snapshot) => {
+                    if (gameMode === 'team' && snapshot.exists()) {
+                        scoreElement.textContent = snapshot.val();
+                    }
+                });
             }
             
             // Update player list
@@ -668,19 +629,12 @@
                             playerElement.classList.add('current-player');
                         }
                         
-                        let playerInfo = `<span>${player.name}</span>`;
-                        playerInfo += `<span>Punkte: ${player.score || 0}</span>`;
+                        playerElement.innerHTML = `
+                            <span>${player.name}</span>
+                            <span>Punkte: ${gameMode === 'team' ? (snapshot.val().teamScore || 0) : (player.score || 0)}</span>
+                            <span>${player.isHost ? '(Host)' : ''}</span>
+                        `;
                         
-                        if (player.isHost) {
-                            playerInfo += '<span>(Host)</span>';
-                        }
-                        
-                        if (gameMode === 'team' && player.team) {
-                            const teamColor = player.team === 'red' ? '#FF5252' : '#4285F4';
-                            playerInfo += `<span style="color: ${teamColor}">${player.team === 'red' ? 'Rot' : 'Blau'}</span>`;
-                        }
-                        
-                        playerElement.innerHTML = playerInfo;
                         playerList.appendChild(playerElement);
                     });
                 });
@@ -716,26 +670,6 @@
                         return;
                     }
                     
-                    // In team mode, assign teams if not already assigned
-                    if (gameMode === 'team') {
-                        let teamAssignment = {};
-                        let teamToggle = true; // Alternate between teams
-                        
-                        playerIds.forEach(playerId => {
-                            const player = players[playerId];
-                            if (!player.team) {
-                                teamAssignment[playerId] = {
-                                    team: teamToggle ? 'red' : 'blue'
-                                };
-                                teamToggle = !teamToggle;
-                            }
-                        });
-                        
-                        if (Object.keys(teamAssignment).length > 0) {
-                            playersRef.update(teamAssignment);
-                        }
-                    }
-                    
                     // Set game mode and first player as current turn
                     gameRef.update({
                         status: 'playing',
@@ -767,7 +701,6 @@
                 gameArea.style.display = 'none';
                 joinForm.style.display = 'none';
                 gameModeSelector.style.display = 'none';
-                teamSelection.style.display = 'none';
                 gameStarted = false;
                 
                 if (gameRef) {
@@ -962,37 +895,29 @@
                     const currentIndex = playerIds.indexOf(currentTurnPlayerId);
                     let nextIndex = (currentIndex + 1) % playerIds.length;
                     
+                    // In team mode, just cycle through all players
+                    if (gameMode === 'team') {
+                        gameRef.update({ currentTurn: playerIds[nextIndex] });
+                        checkGameEnd();
+                        return;
+                    }
+                    
                     // Find next player who can still play
                     let attempts = 0;
                     while (attempts < playerIds.length) {
                         const nextPlayerId = playerIds[nextIndex];
                         const nextPlayer = players[nextPlayerId];
                         
-                        if (gameMode === 'point') {
-                            // In point mode, all players keep playing until no one can move
+                        // In point mode, all players keep playing until no one can move
+                        // In loss mode, players are eliminated when they can't move
+                        if (gameMode === 'point' || (gameMode === 'loss' && nextPlayer.canPlay)) {
+                            // Check if player has valid moves
                             if (hasValidMovesForPlayer(nextPlayerId)) {
                                 break;
-                            }
-                        } else if (gameMode === 'loss') {
-                            // In loss mode, players are eliminated when they can't move
-                            if (nextPlayer.canPlay) {
-                                if (hasValidMovesForPlayer(nextPlayerId)) {
-                                    break;
-                                } else {
+                            } else {
+                                // Player can't move - in loss mode they're out
+                                if (gameMode === 'loss') {
                                     playersRef.child(nextPlayerId).update({ canPlay: false });
-                                }
-                            }
-                        } else if (gameMode === 'team') {
-                            // In team mode, check if player is in a team that can still play
-                            if (nextPlayer.canPlay && nextPlayer.team) {
-                                if (hasValidMovesForPlayer(nextPlayerId)) {
-                                    break;
-                                } else {
-                                    // Check if whole team can't play anymore
-                                    const teamCanPlay = checkTeamCanPlay(nextPlayer.team, players);
-                                    if (!teamCanPlay) {
-                                        markTeamAsOut(nextPlayer.team, players);
-                                    }
                                 }
                             }
                         }
@@ -1007,28 +932,6 @@
                     // Update turn
                     gameRef.update({ currentTurn: playerIds[nextIndex] });
                 });
-            }
-            
-            // Check if team can still play
-            function checkTeamCanPlay(team, players) {
-                for (const playerId in players) {
-                    const player = players[playerId];
-                    if (player.team === team && player.canPlay && hasValidMovesForPlayer(playerId)) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            
-            // Mark whole team as out
-            function markTeamAsOut(team, players) {
-                const updates = {};
-                for (const playerId in players) {
-                    if (players[playerId].team === team) {
-                        updates[playerId + '/canPlay'] = false;
-                    }
-                }
-                playersRef.update(updates);
             }
             
             // Check if player has valid moves
@@ -1053,7 +956,21 @@
                     const players = snapshot.val();
                     const playerIds = Object.keys(players);
                     
-                    if (gameMode === 'point') {
+                    if (gameMode === 'team') {
+                        // In team mode, game ends when no one can place a block
+                        let anyCanPlay = false;
+                        for (const playerId of playerIds) {
+                            if (hasValidMovesForPlayer(playerId)) {
+                                anyCanPlay = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!anyCanPlay) {
+                            endGame();
+                        }
+                    } 
+                    else if (gameMode === 'point') {
                         // In point mode, game ends when no one can place a block
                         let anyCanPlay = false;
                         for (const playerId of playerIds) {
@@ -1066,7 +983,7 @@
                         if (!anyCanPlay) {
                             endGame();
                         }
-                    } else if (gameMode === 'loss') {
+                    } else {
                         // In loss mode, game ends when only one player remains
                         let activePlayers = 0;
                         for (const playerId of playerIds) {
@@ -1076,24 +993,6 @@
                         }
                         
                         if (activePlayers <= 1) {
-                            endGame();
-                        }
-                    } else {
-                        // In team mode, game ends when only one team remains or no one can play
-                        const activeTeams = new Set();
-                        let anyCanPlay = false;
-                        
-                        for (const playerId of playerIds) {
-                            const player = players[playerId];
-                            if (player.canPlay && player.team) {
-                                activeTeams.add(player.team);
-                                if (hasValidMovesForPlayer(playerId)) {
-                                    anyCanPlay = true;
-                                }
-                            }
-                        }
-                        
-                        if (activeTeams.size <= 1 || !anyCanPlay) {
                             endGame();
                         }
                     }
@@ -1112,7 +1011,21 @@
                     let maxScore = -1;
                     let message = "Spiel beendet!\n";
                     
-                    if (gameMode === 'point') {
+                    if (gameMode === 'team') {
+                        // In team mode, show the team score
+                        gameRef.child('teamScore').once('value').then((scoreSnapshot) => {
+                            const teamScore = scoreSnapshot.val() || 0;
+                            message += `Team-Punktzahl: ${teamScore}`;
+                            
+                            gameOverElement.style.display = 'block';
+                            gameOverElement.textContent = message;
+                            gameOverElement.addEventListener('click', () => {
+                                gameOverElement.style.display = 'none';
+                            });
+                        });
+                        return;
+                    }
+                    else if (gameMode === 'point') {
                         // In point mode, player with highest score wins
                         for (const playerId of playerIds) {
                             const player = players[playerId];
@@ -1135,7 +1048,7 @@
                         } else {
                             message += `Unentschieden zwischen ${winners.join(', ')} mit jeweils ${maxScore} Punkten!`;
                         }
-                    } else if (gameMode === 'loss') {
+                    } else {
                         // In loss mode, last remaining player wins
                         for (const playerId of playerIds) {
                             if (players[playerId].canPlay) {
@@ -1148,24 +1061,6 @@
                             message += `Gewinner: ${players[winnerId].name}!`;
                         } else {
                             message += "Unentschieden!";
-                        }
-                    } else {
-                        // In team mode, team with highest score wins
-                        const teamScores = { red: 0, blue: 0 };
-                        
-                        for (const playerId of playerIds) {
-                            const player = players[playerId];
-                            if (player.team && player.score) {
-                                teamScores[player.team] += player.score;
-                            }
-                        }
-                        
-                        if (teamScores.red > teamScores.blue) {
-                            message += `Team Rot gewinnt mit ${teamScores.red} Punkten! (Team Blau: ${teamScores.blue})`;
-                        } else if (teamScores.blue > teamScores.red) {
-                            message += `Team Blau gewinnt mit ${teamScores.blue} Punkten! (Team Rot: ${teamScores.red})`;
-                        } else {
-                            message += `Unentschieden! Beide Teams haben ${teamScores.red} Punkte!`;
                         }
                     }
                     
@@ -1281,30 +1176,31 @@
                     }
                     
                     // Update score
-                    playersRef.child(playerId).once('value').then((snapshot) => {
-                        const player = snapshot.val();
-                        const newScore = player.score + (linesCleared * 10);
-                        
-                        // In team mode, add score to all team members
-                        if (gameMode === 'team' && player.team) {
-                            const updates = {};
-                            for (const pid in snapshot.ref.parent.val()) {
-                                const p = snapshot.ref.parent.child(pid).val();
-                                if (p.team === player.team) {
-                                    updates[pid + '/score'] = (p.score || 0) + (linesCleared * 10);
-                                }
-                            }
-                            playersRef.update(updates);
-                        } else {
+                    if (gameMode === 'team') {
+                        // In team mode, update team score
+                        gameRef.child('teamScore').once('value').then((snapshot) => {
+                            const currentScore = snapshot.val() || 0;
+                            const newScore = currentScore + (linesCleared * 10);
+                            gameRef.update({ teamScore: newScore });
+                            scoreElement.textContent = newScore;
+                            
+                            // Show score animation
+                            const boardRect = gameBoard.getBoundingClientRect();
+                            showScoreAnimation(linesCleared * 10, boardRect.left + boardRect.width / 2, boardRect.top + boardRect.height / 2);
+                        });
+                    } else {
+                        // In other modes, update player's score
+                        playersRef.child(playerId).once('value').then((snapshot) => {
+                            const player = snapshot.val();
+                            const newScore = player.score + (linesCleared * 10);
                             playersRef.child(playerId).update({ score: newScore });
-                        }
-                        
-                        scoreElement.textContent = newScore;
-                        
-                        // Show score animation
-                        const boardRect = gameBoard.getBoundingClientRect();
-                        showScoreAnimation(linesCleared * 10, boardRect.left + boardRect.width / 2, boardRect.top + boardRect.height / 2);
-                    });
+                            scoreElement.textContent = newScore;
+                            
+                            // Show score animation
+                            const boardRect = gameBoard.getBoundingClientRect();
+                            showScoreAnimation(linesCleared * 10, boardRect.left + boardRect.width / 2, boardRect.top + boardRect.height / 2);
+                        });
+                    }
                     
                     // Clear lines after animation
                     setTimeout(() => {
@@ -1370,7 +1266,6 @@
                 pointModeBtn.classList.add('selected');
                 lossModeBtn.classList.remove('selected');
                 teamModeBtn.classList.remove('selected');
-                teamSelection.style.display = 'none';
             });
             
             lossModeBtn.addEventListener('click', () => {
@@ -1378,7 +1273,6 @@
                 lossModeBtn.classList.add('selected');
                 pointModeBtn.classList.remove('selected');
                 teamModeBtn.classList.remove('selected');
-                teamSelection.style.display = 'none';
             });
             
             teamModeBtn.addEventListener('click', () => {
@@ -1386,28 +1280,6 @@
                 teamModeBtn.classList.add('selected');
                 pointModeBtn.classList.remove('selected');
                 lossModeBtn.classList.remove('selected');
-                teamSelection.style.display = 'block';
-                
-                // Randomly assign a team when selecting team mode
-                playerTeam = Math.random() > 0.5 ? 'red' : 'blue';
-                if (playerTeam === 'red') {
-                    teamRed.checked = true;
-                } else {
-                    teamBlue.checked = true;
-                }
-            });
-            
-            // Team selection
-            teamRed.addEventListener('change', () => {
-                if (teamRed.checked) {
-                    playerTeam = 'red';
-                }
-            });
-            
-            teamBlue.addEventListener('change', () => {
-                if (teamBlue.checked) {
-                    playerTeam = 'blue';
-                }
             });
         });
     </script>
