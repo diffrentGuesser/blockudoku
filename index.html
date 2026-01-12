@@ -20,6 +20,7 @@
             display: flex;
             margin-top: 20px;
             gap: 30px;
+            position: relative;
         }
         
         #game-board {
@@ -29,6 +30,7 @@
             gap: 1px;
             background-color: #999;
             border: 2px solid #333;
+            position: relative;
         }
         
         .cell {
@@ -50,6 +52,32 @@
             bottom: 0;
             background: inherit;
             z-index: 1;
+        }
+        
+        .cell.preview {
+            background-color: rgba(144, 238, 144, 0.5);
+            border-color: #4CAF50;
+        }
+        
+        .cell.invalid-preview {
+            background-color: rgba(255, 0, 0, 0.2);
+            border-color: #ff4444;
+        }
+        
+        .cell.filled {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .cell.filled::before {
+            content: '';
+            position: absolute;
+            top: 1px;
+            left: 1px;
+            right: 1px;
+            bottom: 1px;
+            background-color: inherit;
+            z-index: 2;
         }
         
         .cell.clearing {
@@ -163,6 +191,8 @@
             display: none;
             cursor: pointer;
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            position: relative;
         }
         
         .game-over:hover {
@@ -285,6 +315,63 @@
             color: white;
             border-color: #3367D6;
         }
+        
+        .game-over-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .game-over-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .game-over-title {
+            font-size: 32px;
+            color: #ff4444;
+            margin-bottom: 20px;
+        }
+        
+        .winner-info {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #4285F4;
+        }
+        
+        .final-scores {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        
+        .final-score-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .final-score-item:last-child {
+            border-bottom: none;
+        }
+        
+        .highlight-winner {
+            background-color: #e3f2fd;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -327,6 +414,15 @@
     
     <div class="game-over" id="game-over">Game Over! Klicke zum Neustart</div>
     
+    <div class="game-over-overlay" id="game-over-overlay">
+        <div class="game-over-content">
+            <div class="game-over-title" id="game-over-title">Spiel beendet!</div>
+            <div class="winner-info" id="winner-info"></div>
+            <div class="final-scores" id="final-scores"></div>
+            <button id="restart-game-btn">Zurück zur Lobby</button>
+        </div>
+    </div>
+    
     <div class="instructions">
         <div id="join-create-buttons">
             <button id="create-game-btn">Neues Spiel erstellen</button>
@@ -342,6 +438,7 @@
         <br>- <strong>Verlust-Modus:</strong> Wer keinen Block mehr platzieren kann, verliert
         <br>- <strong>Team-Modus:</strong> Alle Spieler arbeiten zusammen, Punkte werden addiert, Spiel endet wenn kein Block mehr platziert werden kann
         <br>Jeder Spieler platziert einen Block pro Runde.</p>
+        <p><strong>Neue Funktion:</strong> Sieh eine Vorschau, wo dein Block platziert wird, bevor du ihn ablegst!</p>
     </div>
     
     <!-- Firebase SDK -->
@@ -392,6 +489,12 @@
             const lossModeBtn = document.getElementById('loss-mode-btn');
             const teamModeBtn = document.getElementById('team-mode-btn');
             const gameModeSelector = document.getElementById('game-mode-selector');
+            const gameOverElement = document.getElementById('game-over');
+            const gameOverOverlay = document.getElementById('game-over-overlay');
+            const gameOverTitle = document.getElementById('game-over-title');
+            const winnerInfo = document.getElementById('winner-info');
+            const finalScores = document.getElementById('final-scores');
+            const restartGameBtn = document.getElementById('restart-game-btn');
             
             // Game state
             let playerId;
@@ -405,13 +508,14 @@
             let gameStarted = false;
             let gameBoard;
             let scoreElement;
-            let gameOverElement;
             let board = Array(boardSize).fill().map(() => Array(boardSize).fill(0));
             let score = 0;
             let currentBlock = null;
             let draggedBlock = null;
             let draggedBlockOffset = { x: 0, y: 0 };
             let gameMode = 'point'; // 'point', 'loss' or 'team'
+            let previewCells = [];
+            let isGameOver = false;
             
             // Block-Typen
             const blockTypes = [
@@ -433,7 +537,6 @@
             function initGameUI() {
                 gameBoard = document.getElementById('game-board');
                 scoreElement = document.getElementById('score');
-                gameOverElement = document.getElementById('game-over');
                 
                 initBoard();
                 generateNewBlock();
@@ -447,6 +550,11 @@
                 } else {
                     gameModeDisplay.textContent = "Modus: Team-Modus (alle arbeiten zusammen)";
                 }
+                
+                // Reset game over state
+                isGameOver = false;
+                gameOverElement.style.display = 'none';
+                gameOverOverlay.style.display = 'none';
             }
             
             // Generate random player name
@@ -487,7 +595,9 @@
                     board: Array(boardSize).fill().map(() => Array(boardSize).fill(0)),
                     players: {},
                     gameMode: gameMode,
-                    teamScore: 0
+                    teamScore: 0,
+                    gameOver: false,
+                    winner: null
                 });
                 
                 // Add host player
@@ -593,6 +703,16 @@
                                 generateNewBlock();
                             }
                         });
+                        
+                        // Listen for game over
+                        gameRef.child('gameOver').on('value', (gameOverSnapshot) => {
+                            if (gameOverSnapshot.val() === true) {
+                                gameRef.child('winner').once('value').then((winnerSnapshot) => {
+                                    const winner = winnerSnapshot.val();
+                                    showGameOver(winner);
+                                });
+                            }
+                        });
                     }
                 });
                 
@@ -674,7 +794,9 @@
                     gameRef.update({
                         status: 'playing',
                         currentTurn: playerIds[0],
-                        gameMode: gameMode
+                        gameMode: gameMode,
+                        gameOver: false,
+                        winner: null
                     });
                 });
             }
@@ -702,6 +824,8 @@
                 joinForm.style.display = 'none';
                 gameModeSelector.style.display = 'none';
                 gameStarted = false;
+                isGameOver = false;
+                gameOverOverlay.style.display = 'none';
                 
                 if (gameRef) {
                     gameRef.off();
@@ -762,7 +886,7 @@
                 currentBlockOption.appendChild(blockElement);
                 
                 blockElement.addEventListener('mousedown', (e) => {
-                    if (currentTurnPlayerId === playerId) {
+                    if (currentTurnPlayerId === playerId && !isGameOver) {
                         startDrag(e, currentBlock, blockElement);
                     }
                 });
@@ -815,7 +939,7 @@
             
             // Start dragging a block
             function startDrag(e, block, blockElement) {
-                if (currentTurnPlayerId !== playerId) return;
+                if (currentTurnPlayerId !== playerId || isGameOver) return;
                 
                 e.preventDefault();
                 e.stopPropagation();
@@ -848,417 +972,439 @@
                 if (!draggedBlock) return;
                 
                 e.preventDefault();
-                draggedBlock.style.left = (e.clientX - draggedBlockOffset.x) + 'px';
-                draggedBlock.style.top = (e.clientY - draggedBlockOffset.y) + 'px';
+                
+                const x = e.clientX - draggedBlockOffset.x;
+                const y = e.clientY - draggedBlockOffset.y;
+                
+                draggedBlock.style.left = x + 'px';
+                draggedBlock.style.top = y + 'px';
+                
+                // Clear previous preview
+                clearPreview();
+                
+                // Calculate grid position
+                const boardRect = gameBoard.getBoundingClientRect();
+                const gridX = Math.floor((e.clientX - boardRect.left) / cellSize);
+                const gridY = Math.floor((e.clientY - boardRect.top) / cellSize);
+                
+                // Show preview if within board bounds
+                if (gridX >= 0 && gridX < boardSize && gridY >= 0 && gridY < boardSize) {
+                    showPreview(gridX, gridY, currentBlock);
+                }
             }
             
-            // Drop block on board
-            function dropBlock(e) {
-                if (!draggedBlock || currentTurnPlayerId !== playerId) return;
+            // Show block placement preview
+            function showPreview(gridX, gridY, block) {
+                previewCells = [];
+                const rows = block.shape.length;
+                const cols = block.shape[0].length;
+                let isValid = true;
                 
-                e.preventDefault();
+                // Check if block can be placed at this position
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
+                        if (block.shape[y][x]) {
+                            const targetX = gridX + x;
+                            const targetY = gridY + y;
+                            
+                            // Check bounds
+                            if (targetX < 0 || targetX >= boardSize || targetY < 0 || targetY >= boardSize) {
+                                isValid = false;
+                                continue;
+                            }
+                            
+                            // Check if cell is already filled
+                            if (board[targetY][targetX] !== 0) {
+                                isValid = false;
+                            }
+                            
+                            const cellIndex = targetY * boardSize + targetX;
+                            const cell = gameBoard.children[cellIndex];
+                            
+                            if (cell) {
+                                previewCells.push(cell);
+                                cell.classList.add(isValid ? 'preview' : 'invalid-preview');
+                            }
+                        }
+                    }
+                }
+                
+                return isValid;
+            }
+            
+            // Clear preview
+            function clearPreview() {
+                previewCells.forEach(cell => {
+                    cell.classList.remove('preview', 'invalid-preview');
+                });
+                previewCells = [];
+            }
+            
+            // Drop the block
+            function dropBlock(e) {
+                if (!draggedBlock) return;
+                
                 document.removeEventListener('mousemove', moveBlock);
                 document.removeEventListener('mouseup', dropBlock);
                 
-                const boardRect = gameBoard.getBoundingClientRect();
-                const blockLeft = e.clientX - draggedBlockOffset.x;
-                const blockTop = e.clientY - draggedBlockOffset.y;
-                const x = Math.floor((blockLeft - boardRect.left) / cellSize);
-                const y = Math.floor((blockTop - boardRect.top) / cellSize);
+                // Clear preview
+                clearPreview();
                 
-                if (canPlaceBlock(currentBlock, x, y)) {
-                    // Update local board first
-                    placeBlock(currentBlock, x, y);
+                // Calculate grid position
+                const boardRect = gameBoard.getBoundingClientRect();
+                const gridX = Math.floor((e.clientX - boardRect.left) / cellSize);
+                const gridY = Math.floor((e.clientY - boardRect.top) / cellSize);
+                
+                // Check if placement is valid
+                if (gridX >= 0 && gridX < boardSize && gridY >= 0 && gridY < boardSize) {
+                    const canPlace = canPlaceBlock(gridX, gridY, currentBlock);
                     
-                    // Update Firebase board
-                    boardRef.set(board).then(() => {
-                        checkCompletedLines();
-                        
-                        // Mark block as used
-                        currentBlockOption.classList.add('used');
-                        
-                        // Pass turn to next player
-                        passTurn();
-                    });
+                    if (canPlace) {
+                        placeBlock(gridX, gridY, currentBlock);
+                    } else {
+                        alert("Block kann hier nicht platziert werden!");
+                    }
                 }
                 
                 // Remove dragged block
-                draggedBlock.remove();
+                if (draggedBlock.parentNode) {
+                    draggedBlock.parentNode.removeChild(draggedBlock);
+                }
                 draggedBlock = null;
             }
             
-            // Pass turn to next player
-            function passTurn() {
-                playersRef.once('value').then((snapshot) => {
-                    const players = snapshot.val();
-                    const playerIds = Object.keys(players);
-                    const currentIndex = playerIds.indexOf(currentTurnPlayerId);
-                    let nextIndex = (currentIndex + 1) % playerIds.length;
-                    
-                    // In team mode, just cycle through all players
-                    if (gameMode === 'team') {
-                        gameRef.update({ currentTurn: playerIds[nextIndex] });
-                        checkGameEnd();
-                        return;
-                    }
-                    
-                    // Find next player who can still play
-                    let attempts = 0;
-                    while (attempts < playerIds.length) {
-                        const nextPlayerId = playerIds[nextIndex];
-                        const nextPlayer = players[nextPlayerId];
-                        
-                        // In point mode, all players keep playing until no one can move
-                        // In loss mode, players are eliminated when they can't move
-                        if (gameMode === 'point' || (gameMode === 'loss' && nextPlayer.canPlay)) {
-                            // Check if player has valid moves
-                            if (hasValidMovesForPlayer(nextPlayerId)) {
-                                break;
-                            } else {
-                                // Player can't move - in loss mode they're out
-                                if (gameMode === 'loss') {
-                                    playersRef.child(nextPlayerId).update({ canPlay: false });
-                                }
-                            }
-                        }
-                        
-                        nextIndex = (nextIndex + 1) % playerIds.length;
-                        attempts++;
-                    }
-                    
-                    // Check if game is over
-                    checkGameEnd();
-                    
-                    // Update turn
-                    gameRef.update({ currentTurn: playerIds[nextIndex] });
-                });
-            }
-            
-            // Check if player has valid moves
-            function hasValidMovesForPlayer(playerId) {
-                // For simplicity, we'll assume the player would get a random block
-                // and check if it can be placed anywhere
-                const testBlock = randomTransform(blockTypes[Math.floor(Math.random() * blockTypes.length)]);
-                
-                for (let y = 0; y < boardSize; y++) {
-                    for (let x = 0; x < boardSize; x++) {
-                        if (canPlaceBlock(testBlock, x, y)) {
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            }
-            
-            // Check if game should end
-            function checkGameEnd() {
-                playersRef.once('value').then((snapshot) => {
-                    const players = snapshot.val();
-                    const playerIds = Object.keys(players);
-                    
-                    if (gameMode === 'team') {
-                        // In team mode, game ends when no one can place a block
-                        let anyCanPlay = false;
-                        for (const playerId of playerIds) {
-                            if (hasValidMovesForPlayer(playerId)) {
-                                anyCanPlay = true;
-                                break;
-                            }
-                        }
-                        
-                        if (!anyCanPlay) {
-                            endGame();
-                        }
-                    } 
-                    else if (gameMode === 'point') {
-                        // In point mode, game ends when no one can place a block
-                        let anyCanPlay = false;
-                        for (const playerId of playerIds) {
-                            if (hasValidMovesForPlayer(playerId)) {
-                                anyCanPlay = true;
-                                break;
-                            }
-                        }
-                        
-                        if (!anyCanPlay) {
-                            endGame();
-                        }
-                    } else {
-                        // In loss mode, game ends when only one player remains
-                        let activePlayers = 0;
-                        for (const playerId of playerIds) {
-                            if (players[playerId].canPlay) {
-                                activePlayers++;
-                            }
-                        }
-                        
-                        if (activePlayers <= 1) {
-                            endGame();
-                        }
-                    }
-                });
-            }
-            
-            // End the game and show results
-            function endGame() {
-                gameRef.update({ status: 'finished' });
-                
-                playersRef.once('value').then((snapshot) => {
-                    const players = snapshot.val();
-                    const playerIds = Object.keys(players);
-                    
-                    let winnerId = null;
-                    let maxScore = -1;
-                    let message = "Spiel beendet!\n";
-                    
-                    if (gameMode === 'team') {
-                        // In team mode, show the team score
-                        gameRef.child('teamScore').once('value').then((scoreSnapshot) => {
-                            const teamScore = scoreSnapshot.val() || 0;
-                            message += `Team-Punktzahl: ${teamScore}`;
-                            
-                            gameOverElement.style.display = 'block';
-                            gameOverElement.textContent = message;
-                            gameOverElement.addEventListener('click', () => {
-                                gameOverElement.style.display = 'none';
-                            });
-                        });
-                        return;
-                    }
-                    else if (gameMode === 'point') {
-                        // In point mode, player with highest score wins
-                        for (const playerId of playerIds) {
-                            const player = players[playerId];
-                            if (player.score > maxScore) {
-                                maxScore = player.score;
-                                winnerId = playerId;
-                            }
-                        }
-                        
-                        // Check for ties
-                        const winners = [];
-                        for (const playerId of playerIds) {
-                            if (players[playerId].score === maxScore) {
-                                winners.push(players[playerId].name);
-                            }
-                        }
-                        
-                        if (winners.length === 1) {
-                            message += `Gewinner: ${winners[0]} mit ${maxScore} Punkten!`;
-                        } else {
-                            message += `Unentschieden zwischen ${winners.join(', ')} mit jeweils ${maxScore} Punkten!`;
-                        }
-                    } else {
-                        // In loss mode, last remaining player wins
-                        for (const playerId of playerIds) {
-                            if (players[playerId].canPlay) {
-                                winnerId = playerId;
-                                break;
-                            }
-                        }
-                        
-                        if (winnerId) {
-                            message += `Gewinner: ${players[winnerId].name}!`;
-                        } else {
-                            message += "Unentschieden!";
-                        }
-                    }
-                    
-                    gameOverElement.style.display = 'block';
-                    gameOverElement.textContent = message;
-                    gameOverElement.addEventListener('click', () => {
-                        gameOverElement.style.display = 'none';
-                    });
-                });
-            }
-            
             // Check if block can be placed
-            function canPlaceBlock(block, startX, startY) {
-                for (let y = 0; y < block.shape.length; y++) {
-                    for (let x = 0; x < block.shape[y].length; x++) {
-                        if (block.shape[y][x]) {
-                            const boardX = startX + x;
-                            const boardY = startY + y;
-                            
-                            if (boardX < 0 || boardX >= boardSize || boardY < 0 || boardY >= boardSize) {
-                                return false;
-                            }
-                            
-                            if (board[boardY][boardX] !== 0) {
-                                return false;
-                            }
+            function canPlaceBlock(gridX, gridY, block) {
+                const rows = block.shape.length;
+                const cols = block.shape[0].length;
+                
+                // Check bounds
+                if (gridX < 0 || gridX + cols > boardSize || gridY < 0 || gridY + rows > boardSize) {
+                    return false;
+                }
+                
+                // Check if cells are empty
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
+                        if (block.shape[y][x] && board[gridY + y][gridX + x] !== 0) {
+                            return false;
                         }
                     }
                 }
+                
                 return true;
             }
             
-            // Place block on board
-            function placeBlock(block, startX, startY) {
-                for (let y = 0; y < block.shape.length; y++) {
-                    for (let x = 0; x < block.shape[y].length; x++) {
+            // Place a block on the board
+            function placeBlock(gridX, gridY, block) {
+                if (!canPlaceBlock(gridX, gridY, block) || currentTurnPlayerId !== playerId || isGameOver) return;
+                
+                const rows = block.shape.length;
+                const cols = block.shape[0].length;
+                let newBoard = JSON.parse(JSON.stringify(board));
+                let pointsScored = 0;
+                
+                // Place the block
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
                         if (block.shape[y][x]) {
-                            const boardX = startX + x;
-                            const boardY = startY + y;
-                            board[boardY][boardX] = block.color;
+                            newBoard[gridY + y][gridX + x] = {
+                                color: block.color,
+                                playerId: playerId
+                            };
                         }
                     }
                 }
-            }
-            
-            // Update board display
-            function updateBoard() {
-                const cells = document.querySelectorAll('#game-board .cell');
-                for (let y = 0; y < boardSize; y++) {
-                    for (let x = 0; x < boardSize; x++) {
-                        const index = y * boardSize + x;
-                        cells[index].style.backgroundColor = board[y][x] || 'white';
-                    }
-                }
-            }
-            
-            // Show score animation
-            function showScoreAnimation(scoreToAdd, x, y) {
-                const scoreAnim = document.createElement('div');
-                scoreAnim.className = 'score-added';
-                scoreAnim.textContent = `+${scoreToAdd}`;
-                scoreAnim.style.left = `${x}px`;
-                scoreAnim.style.top = `${y}px`;
-                document.body.appendChild(scoreAnim);
                 
-                setTimeout(() => {
-                    scoreAnim.remove();
-                }, 1000);
-            }
-            
-            // Check for completed lines
-            function checkCompletedLines() {
-                let completedRows = [];
-                let completedCols = [];
+                // Check for completed rows, columns, and 3x3 squares
+                let cellsToClear = [];
                 
                 // Check rows
                 for (let y = 0; y < boardSize; y++) {
-                    if (board[y].every(cell => cell !== 0)) {
-                        completedRows.push(y);
+                    let rowComplete = true;
+                    for (let x = 0; x < boardSize; x++) {
+                        if (newBoard[y][x] === 0) {
+                            rowComplete = false;
+                            break;
+                        }
+                    }
+                    if (rowComplete) {
+                        for (let x = 0; x < boardSize; x++) {
+                            cellsToClear.push({x, y});
+                        }
+                        pointsScored += 18; // Bonus for full row
                     }
                 }
                 
                 // Check columns
                 for (let x = 0; x < boardSize; x++) {
-                    let complete = true;
+                    let colComplete = true;
                     for (let y = 0; y < boardSize; y++) {
-                        if (board[y][x] === 0) {
-                            complete = false;
+                        if (newBoard[y][x] === 0) {
+                            colComplete = false;
                             break;
                         }
                     }
-                    if (complete) completedCols.push(x);
-                }
-                
-                const linesCleared = completedRows.length + completedCols.length;
-                
-                if (linesCleared > 0) {
-                    // Animate clearing
-                    const cells = document.querySelectorAll('#game-board .cell');
-                    
-                    for (const row of completedRows) {
-                        for (let x = 0; x < boardSize; x++) {
-                            const index = row * boardSize + x;
-                            cells[index].classList.add('clearing');
-                        }
-                    }
-                    
-                    for (const col of completedCols) {
+                    if (colComplete) {
                         for (let y = 0; y < boardSize; y++) {
-                            const index = y * boardSize + col;
-                            cells[index].classList.add('clearing');
+                            cellsToClear.push({x, y});
                         }
+                        pointsScored += 18; // Bonus for full column
                     }
-                    
-                    // Update score
-                    if (gameMode === 'team') {
-                        // In team mode, update team score
-                        gameRef.child('teamScore').once('value').then((snapshot) => {
-                            const currentScore = snapshot.val() || 0;
-                            const newScore = currentScore + (linesCleared * 10);
-                            gameRef.update({ teamScore: newScore });
-                            scoreElement.textContent = newScore;
-                            
-                            // Show score animation
-                            const boardRect = gameBoard.getBoundingClientRect();
-                            showScoreAnimation(linesCleared * 10, boardRect.left + boardRect.width / 2, boardRect.top + boardRect.height / 2);
-                        });
-                    } else {
-                        // In other modes, update player's score
-                        playersRef.child(playerId).once('value').then((snapshot) => {
-                            const player = snapshot.val();
-                            const newScore = player.score + (linesCleared * 10);
-                            playersRef.child(playerId).update({ score: newScore });
-                            scoreElement.textContent = newScore;
-                            
-                            // Show score animation
-                            const boardRect = gameBoard.getBoundingClientRect();
-                            showScoreAnimation(linesCleared * 10, boardRect.left + boardRect.width / 2, boardRect.top + boardRect.height / 2);
-                        });
-                    }
-                    
-                    // Clear lines after animation
-                    setTimeout(() => {
-                        for (const row of completedRows) {
-                            for (let x = 0; x < boardSize; x++) {
-                                board[row][x] = 0;
-                            }
-                        }
-                        
-                        for (const col of completedCols) {
-                            for (let y = 0; y < boardSize; y++) {
-                                board[y][col] = 0;
-                            }
-                        }
-                        
-                        // Update Firebase board
-                        boardRef.set(board);
-                        
-                        // Remove animation classes
-                        cells.forEach(cell => cell.classList.remove('clearing'));
-                    }, 500);
                 }
+                
+                // Check 3x3 squares
+                for (let squareY = 0; squareY < 3; squareY++) {
+                    for (let squareX = 0; squareX < 3; squareX++) {
+                        let squareComplete = true;
+                        for (let y = squareY * 3; y < squareY * 3 + 3; y++) {
+                            for (let x = squareX * 3; x < squareX * 3 + 3; x++) {
+                                if (newBoard[y][x] === 0) {
+                                    squareComplete = false;
+                                    break;
+                                }
+                            }
+                            if (!squareComplete) break;
+                        }
+                        if (squareComplete) {
+                            for (let y = squareY * 3; y < squareY * 3 + 3; y++) {
+                                for (let x = squareX * 3; x < squareX * 3 + 3; x++) {
+                                    cellsToClear.push({x, y});
+                                }
+                            }
+                            pointsScored += 9; // Bonus for full 3x3 square
+                        }
+                    }
+                }
+                
+                // Remove duplicates and clear cells
+                cellsToClear = cellsToClear.filter((cell, index, self) =>
+                    index === self.findIndex((c) => c.x === cell.x && c.y === cell.y)
+                );
+                
+                cellsToClear.forEach(cell => {
+                    newBoard[cell.y][cell.x] = 0;
+                });
+                
+                // Add points for placed cells
+                pointsScored += rows * cols * 2;
+                
+                // Update score based on game mode
+                if (gameMode === 'team') {
+                    gameRef.child('teamScore').transaction((currentScore) => {
+                        return (currentScore || 0) + pointsScored;
+                    });
+                } else {
+                    playersRef.child(playerId).child('score').transaction((currentScore) => {
+                        return (currentScore || 0) + pointsScored;
+                    });
+                }
+                
+                // Update board in Firebase
+                boardRef.set(newBoard);
+                
+                // Mark block as used
+                currentBlockOption.classList.add('used');
+                
+                // Find next player who can play
+                findNextPlayer();
             }
             
-            // Check for valid moves with current block
-            function hasValidMoves() {
-                if (!currentBlock) return false;
+            // Find next player who can play
+            function findNextPlayer() {
+                playersRef.once('value').then((snapshot) => {
+                    const players = snapshot.val();
+                    const playerIds = Object.keys(players);
+                    const currentIndex = playerIds.indexOf(currentTurnPlayerId);
+                    
+                    // Try next players in order
+                    for (let i = 1; i <= playerIds.length; i++) {
+                        const nextIndex = (currentIndex + i) % playerIds.length;
+                        const nextPlayerId = playerIds[nextIndex];
+                        
+                        // Check if this player can play (not eliminated in loss mode)
+                        if (players[nextPlayerId].canPlay !== false) {
+                            gameRef.child('currentTurn').set(nextPlayerId);
+                            
+                            // Check if game is over
+                            checkGameOver();
+                            return;
+                        }
+                    }
+                    
+                    // If no player can play, game is over
+                    endGame();
+                });
+            }
+            
+            // Check if game is over
+            function checkGameOver() {
+                playersRef.once('value').then((playersSnapshot) => {
+                    const players = playersSnapshot.val();
+                    const playerIds = Object.keys(players);
+                    
+                    if (gameMode === 'loss') {
+                        // In loss mode, check if any player has moves left
+                        let anyPlayerCanPlay = false;
+                        
+                        playerIds.forEach(id => {
+                            if (players[id].canPlay !== false) {
+                                // Check if player has any valid moves
+                                // For simplicity, we'll assume they can play
+                                // In a full implementation, you would check all block options
+                                anyPlayerCanPlay = true;
+                            }
+                        });
+                        
+                        if (!anyPlayerCanPlay) {
+                            // Game over - find winner (player who lasted longest)
+                            let winnerId = null;
+                            let maxScore = -1;
+                            
+                            playerIds.forEach(id => {
+                                if (players[id].score > maxScore) {
+                                    maxScore = players[id].score;
+                                    winnerId = id;
+                                }
+                            });
+                            
+                            if (winnerId) {
+                                endGame(winnerId);
+                            }
+                        }
+                    } else if (gameMode === 'team') {
+                        // In team mode, check if team has moves left
+                        // For now, we'll let the game continue
+                        // You could add logic to check all possible blocks
+                    }
+                    // In point mode, game continues until host ends it
+                });
+            }
+            
+            // End the game
+            function endGame(winnerId = null) {
+                gameRef.update({
+                    gameOver: true,
+                    winner: winnerId,
+                    status: 'finished'
+                });
+            }
+            
+            // Show game over screen
+            function showGameOver(winnerId) {
+                if (isGameOver) return;
+                
+                isGameOver = true;
+                gameOverOverlay.style.display = 'flex';
+                
+                playersRef.once('value').then((snapshot) => {
+                    const players = snapshot.val();
+                    const playerIds = Object.keys(players);
+                    
+                    // Update game over display
+                    if (gameMode === 'team') {
+                        gameRef.child('teamScore').once('value').then((teamScoreSnapshot) => {
+                            const teamScore = teamScoreSnapshot.val() || 0;
+                            gameOverTitle.textContent = "Team-Spiel beendet!";
+                            winnerInfo.textContent = `Team-Punktzahl: ${teamScore}`;
+                        });
+                    } else if (winnerId) {
+                        const winnerName = players[winnerId].name;
+                        gameOverTitle.textContent = "Spiel beendet!";
+                        winnerInfo.textContent = `Gewinner: ${winnerName}`;
+                    } else {
+                        gameOverTitle.textContent = "Spiel beendet!";
+                        winnerInfo.textContent = "Unentschieden!";
+                    }
+                    
+                    // Show final scores
+                    finalScores.innerHTML = '<h3>Endpunktestände:</h3>';
+                    
+                    playerIds.forEach(id => {
+                        const player = players[id];
+                        const scoreDiv = document.createElement('div');
+                        scoreDiv.className = 'final-score-item';
+                        
+                        if (id === winnerId) {
+                            scoreDiv.classList.add('highlight-winner');
+                        }
+                        
+                        if (gameMode === 'team') {
+                            gameRef.child('teamScore').once('value').then((teamScoreSnapshot) => {
+                                scoreDiv.innerHTML = `
+                                    <span>${player.name} ${player.isHost ? '(Host)' : ''}</span>
+                                    <span>${teamScoreSnapshot.val() || 0} Punkte</span>
+                                `;
+                            });
+                        } else {
+                            scoreDiv.innerHTML = `
+                                <span>${player.name} ${player.isHost ? '(Host)' : ''}</span>
+                                <span>${player.score || 0} Punkte</span>
+                            `;
+                        }
+                        
+                        finalScores.appendChild(scoreDiv);
+                    });
+                });
+            }
+            
+            // Update the board display
+            function updateBoard() {
+                if (!gameBoard) return;
                 
                 for (let y = 0; y < boardSize; y++) {
                     for (let x = 0; x < boardSize; x++) {
-                        if (canPlaceBlock(currentBlock, x, y)) {
-                            return true;
+                        const cellIndex = y * boardSize + x;
+                        const cell = gameBoard.children[cellIndex];
+                        const cellData = board[y][x];
+                        
+                        if (cellData === 0) {
+                            cell.className = 'cell';
+                            cell.style.backgroundColor = '';
+                        } else {
+                            cell.className = 'cell filled';
+                            cell.style.backgroundColor = cellData.color || '#999';
                         }
                     }
                 }
-                return false;
             }
             
-            // Event listeners
+            // Event Listeners
             createGameBtn.addEventListener('click', createGame);
+            
             joinGameBtn.addEventListener('click', () => {
                 document.getElementById('join-create-buttons').style.display = 'none';
                 joinForm.style.display = 'block';
             });
+            
+            cancelJoinBtn.addEventListener('click', () => {
+                document.getElementById('join-create-buttons').style.display = 'block';
+                joinForm.style.display = 'none';
+            });
+            
             confirmJoinBtn.addEventListener('click', () => {
                 const code = roomCodeInput.value.trim().toUpperCase();
                 if (code.length === 4) {
                     joinGame(code);
                 } else {
-                    alert('Ungültiger Raumcode!');
+                    alert('Bitte einen gültigen 4-stelligen Raumcode eingeben!');
                 }
             });
-            cancelJoinBtn.addEventListener('click', () => {
-                joinForm.style.display = 'none';
-                document.getElementById('join-create-buttons').style.display = 'block';
+            
+            roomCodeInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    confirmJoinBtn.click();
+                }
             });
+            
             startGameBtn.addEventListener('click', startGame);
+            
             leaveGameBtn.addEventListener('click', leaveGame);
+            
+            restartGameBtn.addEventListener('click', () => {
+                gameOverOverlay.style.display = 'none';
+                resetUI();
+            });
             
             // Game mode selection
             pointModeBtn.addEventListener('click', () => {
@@ -1281,6 +1427,9 @@
                 pointModeBtn.classList.remove('selected');
                 lossModeBtn.classList.remove('selected');
             });
+            
+            // Initialize
+            console.log("Blockudoku Multiplayer loaded!");
         });
     </script>
 </body>
