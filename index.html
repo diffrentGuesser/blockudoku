@@ -372,6 +372,14 @@
             background-color: #e3f2fd;
             font-weight: bold;
         }
+        
+        /* Block ghost while dragging */
+        .block-ghost {
+            position: absolute;
+            pointer-events: none;
+            z-index: 99;
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body>
@@ -944,22 +952,36 @@
                 e.preventDefault();
                 e.stopPropagation();
                 
+                // Calculate block center
+                const blockRect = blockElement.getBoundingClientRect();
+                const rows = block.shape.length;
+                const cols = block.shape[0].length;
+                const blockWidth = cols * blockCellSize;
+                const blockHeight = rows * blockCellSize;
+                
+                // Create ghost block for dragging
                 draggedBlock = blockElement.cloneNode(true);
+                draggedBlock.classList.add('block-ghost');
                 document.body.appendChild(draggedBlock);
                 
-                const blockRect = blockElement.getBoundingClientRect();
-                const mouseX = e.clientX;
-                const mouseY = e.clientY;
-                
+                // Calculate offset to center block on mouse pointer
                 draggedBlockOffset = {
-                    x: mouseX - blockRect.left,
-                    y: mouseY - blockRect.top
+                    x: blockWidth / 2,
+                    y: blockHeight / 2
                 };
                 
-                draggedBlock.style.position = 'absolute';
+                draggedBlock.style.position = 'fixed';
                 draggedBlock.style.zIndex = '100';
                 draggedBlock.style.cursor = 'grabbing';
                 draggedBlock.style.pointerEvents = 'none';
+                draggedBlock.style.opacity = '0.8';
+                
+                // Position the block centered on mouse
+                const x = e.clientX - draggedBlockOffset.x;
+                const y = e.clientY - draggedBlockOffset.y;
+                
+                draggedBlock.style.left = x + 'px';
+                draggedBlock.style.top = y + 'px';
                 
                 moveBlock(e);
                 
@@ -973,6 +995,7 @@
                 
                 e.preventDefault();
                 
+                // Position block centered on mouse pointer
                 const x = e.clientX - draggedBlockOffset.x;
                 const y = e.clientY - draggedBlockOffset.y;
                 
@@ -982,12 +1005,32 @@
                 // Clear previous preview
                 clearPreview();
                 
-                // Calculate grid position
+                // Calculate grid position - find the cell that the mouse is over
                 const boardRect = gameBoard.getBoundingClientRect();
-                const gridX = Math.floor((e.clientX - boardRect.left) / cellSize);
-                const gridY = Math.floor((e.clientY - boardRect.top) / cellSize);
+                const rows = currentBlock.shape.length;
+                const cols = currentBlock.shape[0].length;
                 
-                // Show preview if within board bounds
+                // Calculate which cell the mouse is pointing at
+                const mouseX = e.clientX;
+                const mouseY = e.clientY;
+                
+                // Find the closest cell to the mouse pointer
+                let closestGridX = Math.floor((mouseX - boardRect.left) / cellSize);
+                let closestGridY = Math.floor((mouseY - boardRect.top) / cellSize);
+                
+                // Adjust for block size - we want to center the block on the mouse
+                // For even-sized blocks, we need to adjust by half a cell
+                const offsetX = cols % 2 === 0 ? 0.5 : 0;
+                const offsetY = rows % 2 === 0 ? 0.5 : 0;
+                
+                const adjustedGridX = closestGridX - Math.floor(cols / 2) + offsetX;
+                const adjustedGridY = closestGridY - Math.floor(rows / 2) + offsetY;
+                
+                // Round to nearest integer for grid placement
+                const gridX = Math.round(adjustedGridX);
+                const gridY = Math.round(adjustedGridY);
+                
+                // Show preview at calculated position
                 if (gridX >= 0 && gridX < boardSize && gridY >= 0 && gridY < boardSize) {
                     showPreview(gridX, gridY, currentBlock);
                 }
@@ -1050,10 +1093,30 @@
                 // Clear preview
                 clearPreview();
                 
-                // Calculate grid position
+                // Calculate grid position for placement
                 const boardRect = gameBoard.getBoundingClientRect();
-                const gridX = Math.floor((e.clientX - boardRect.left) / cellSize);
-                const gridY = Math.floor((e.clientY - boardRect.top) / cellSize);
+                const rows = currentBlock.shape.length;
+                const cols = currentBlock.shape[0].length;
+                
+                // Calculate which cell the mouse is pointing at
+                const mouseX = e.clientX;
+                const mouseY = e.clientY;
+                
+                // Find the closest cell to the mouse pointer
+                let closestGridX = Math.floor((mouseX - boardRect.left) / cellSize);
+                let closestGridY = Math.floor((mouseY - boardRect.top) / cellSize);
+                
+                // Adjust for block size - we want to center the block on the mouse
+                // For even-sized blocks, we need to adjust by half a cell
+                const offsetX = cols % 2 === 0 ? 0.5 : 0;
+                const offsetY = rows % 2 === 0 ? 0.5 : 0;
+                
+                const adjustedGridX = closestGridX - Math.floor(cols / 2) + offsetX;
+                const adjustedGridY = closestGridY - Math.floor(rows / 2) + offsetY;
+                
+                // Round to nearest integer for grid placement
+                const gridX = Math.round(adjustedGridX);
+                const gridY = Math.round(adjustedGridY);
                 
                 // Check if placement is valid
                 if (gridX >= 0 && gridX < boardSize && gridY >= 0 && gridY < boardSize) {
@@ -1062,7 +1125,18 @@
                     if (canPlace) {
                         placeBlock(gridX, gridY, currentBlock);
                     } else {
-                        alert("Block kann hier nicht platziert werden!");
+                        // Show error feedback
+                        const originalColor = currentBlock.color;
+                        draggedBlock.style.backgroundColor = '#ff4444';
+                        draggedBlock.style.opacity = '0.6';
+                        
+                        setTimeout(() => {
+                            if (draggedBlock.parentNode) {
+                                draggedBlock.parentNode.removeChild(draggedBlock);
+                            }
+                            draggedBlock = null;
+                        }, 300);
+                        return;
                     }
                 }
                 
