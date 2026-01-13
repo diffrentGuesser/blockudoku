@@ -5,15 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multiplayer Blockudoku</title>
     <style>
+        :root {
+            --bg-color: #f0f0f0;
+            --text-color: #333;
+            --cell-bg: white;
+            --cell-border: #ddd;
+            --board-bg: #999;
+            --board-border: #333;
+            --block-options-bg: #ddd;
+            --block-option-bg: #eee;
+            --player-list-bg: white;
+            --game-over-bg: white;
+            --button-bg: #4285F4;
+            --button-hover-bg: #3367D6;
+            --instructions-bg: #e3f2fd;
+            --score-added-color: green;
+            --preview-color: rgba(144, 238, 144, 0.5);
+            --invalid-preview-color: rgba(255, 0, 0, 0.2);
+            --current-player-bg: #e3f2fd;
+            --mode-btn-bg: #f1f1f1;
+            --mode-btn-color: #333;
+            --selected-mode-bg: #4285F4;
+            --selected-mode-color: white;
+        }
+
+        .dark-mode {
+            --bg-color: #121212;
+            --text-color: #ffffff;
+            --cell-bg: #1e1e1e;
+            --cell-border: #333;
+            --board-bg: #2d2d2d;
+            --board-border: #444;
+            --block-options-bg: #2d2d2d;
+            --block-option-bg: #3d3d3d;
+            --player-list-bg: #2d2d2d;
+            --game-over-bg: #2d2d2d;
+            --button-bg: #5a9cff;
+            --button-hover-bg: #4a8cef;
+            --instructions-bg: #1e3a5f;
+            --score-added-color: #4CAF50;
+            --preview-color: rgba(76, 175, 80, 0.3);
+            --invalid-preview-color: rgba(255, 87, 87, 0.3);
+            --current-player-bg: #1e3a5f;
+            --mode-btn-bg: #3d3d3d;
+            --mode-btn-color: #ddd;
+            --selected-mode-bg: #5a9cff;
+            --selected-mode-color: white;
+        }
+
         body {
             font-family: Arial, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
-            background-color: #f0f0f0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             margin: 0;
             padding: 20px;
             user-select: none;
+            transition: background-color 0.3s, color 0.3s;
         }
         
         .game-container {
@@ -28,16 +78,17 @@
             grid-template-columns: repeat(9, 40px);
             grid-template-rows: repeat(9, 40px);
             gap: 1px;
-            background-color: #999;
-            border: 2px solid #333;
+            background-color: var(--board-bg);
+            border: 2px solid var(--board-border);
             position: relative;
+            transition: background-color 0.3s, border-color 0.3s;
         }
         
         .cell {
             width: 40px;
             height: 40px;
-            background-color: white;
-            border: 1px solid #ddd;
+            background-color: var(--cell-bg);
+            border: 1px solid var(--cell-border);
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
@@ -55,12 +106,12 @@
         }
         
         .cell.preview {
-            background-color: rgba(144, 238, 144, 0.5);
+            background-color: var(--preview-color);
             border-color: #4CAF50;
         }
         
         .cell.invalid-preview {
-            background-color: rgba(255, 0, 0, 0.2);
+            background-color: var(--invalid-preview-color);
             border-color: #ff4444;
         }
         
@@ -92,7 +143,7 @@
             50% {
                 transform: scale(1.2);
                 opacity: 0.8;
-                background-color: white;
+                background-color: var(--cell-bg);
             }
             100% {
                 transform: scale(0);
@@ -126,8 +177,9 @@
             flex-direction: column;
             gap: 15px;
             padding: 15px;
-            background-color: #ddd;
+            background-color: var(--block-options-bg);
             border-radius: 5px;
+            transition: background-color 0.3s;
         }
         
         .block-option {
@@ -136,10 +188,10 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            background-color: #eee;
+            background-color: var(--block-option-bg);
             border-radius: 5px;
             cursor: pointer;
-            transition: transform 0.1s;
+            transition: transform 0.1s, background-color 0.3s;
         }
         
         .block-option:hover {
@@ -163,7 +215,7 @@
         
         .score-added {
             position: absolute;
-            color: green;
+            color: var(--score-added-color);
             font-weight: bold;
             animation: scoreAnimation 1s ease-out forwards;
             pointer-events: none;
@@ -201,11 +253,12 @@
         
         .instructions {
             margin-top: 20px;
-            background-color: #e3f2fd;
+            background-color: var(--instructions-bg);
             padding: 15px;
             border-radius: 5px;
             max-width: 600px;
             text-align: center;
+            transition: background-color 0.3s;
         }
         
         .blocks-used {
@@ -235,16 +288,17 @@
         
         button {
             padding: 10px 20px;
-            background-color: #4285F4;
+            background-color: var(--button-bg);
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             font-size: 16px;
+            transition: background-color 0.3s;
         }
         
         button:hover {
-            background-color: #3367D6;
+            background-color: var(--button-hover-bg);
         }
         
         button:disabled {
@@ -256,17 +310,18 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            background-color: white;
+            background-color: var(--player-list-bg);
             padding: 15px;
             border-radius: 5px;
             width: 300px;
+            transition: background-color 0.3s;
         }
         
         .player-item {
             display: flex;
             justify-content: space-between;
             padding: 8px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--cell-border);
         }
         
         .player-item:last-child {
@@ -274,21 +329,24 @@
         }
         
         .current-player {
-            background-color: #e3f2fd;
+            background-color: var(--current-player-bg);
             font-weight: bold;
         }
         
         .room-code {
             font-size: 24px;
             font-weight: bold;
-            color: #4285F4;
+            color: var(--button-bg);
         }
         
         .input-field {
             padding: 10px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--cell-border);
+            background-color: var(--cell-bg);
+            color: var(--text-color);
             border-radius: 5px;
             font-size: 16px;
+            transition: all 0.3s;
         }
         
         .game-status {
@@ -305,15 +363,16 @@
         
         .game-mode-btn {
             padding: 8px 15px;
-            background-color: #f1f1f1;
-            color: #333;
-            border: 2px solid #ddd;
+            background-color: var(--mode-btn-bg);
+            color: var(--mode-btn-color);
+            border: 2px solid var(--cell-border);
+            transition: all 0.3s;
         }
         
         .game-mode-btn.selected {
-            background-color: #4285F4;
-            color: white;
-            border-color: #3367D6;
+            background-color: var(--selected-mode-bg);
+            color: var(--selected-mode-color);
+            border-color: var(--button-hover-bg);
         }
         
         .game-over-overlay {
@@ -332,12 +391,14 @@
         }
         
         .game-over-content {
-            background-color: white;
+            background-color: var(--game-over-bg);
+            color: var(--text-color);
             padding: 30px;
             border-radius: 10px;
             text-align: center;
             max-width: 500px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            transition: background-color 0.3s, color 0.3s;
         }
         
         .game-over-title {
@@ -349,7 +410,7 @@
         .winner-info {
             font-size: 24px;
             margin-bottom: 20px;
-            color: #4285F4;
+            color: var(--button-bg);
         }
         
         .final-scores {
@@ -361,7 +422,7 @@
             display: flex;
             justify-content: space-between;
             padding: 8px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--cell-border);
         }
         
         .final-score-item:last-child {
@@ -369,7 +430,7 @@
         }
         
         .highlight-winner {
-            background-color: #e3f2fd;
+            background-color: var(--current-player-bg);
             font-weight: bold;
         }
         
@@ -380,9 +441,52 @@
             z-index: 99;
             opacity: 0.8;
         }
+        
+        /* Theme Toggle */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--button-bg);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+        
+        .theme-toggle:hover {
+            background: var(--button-hover-bg);
+            transform: scale(1.1);
+        }
+        
+        .theme-toggle .dark-icon {
+            display: none;
+        }
+        
+        .dark-mode .theme-toggle .light-icon {
+            display: none;
+        }
+        
+        .dark-mode .theme-toggle .dark-icon {
+            display: block;
+        }
     </style>
 </head>
 <body>
+    <button class="theme-toggle" id="theme-toggle">
+        <span class="light-icon">🌙</span>
+        <span class="dark-icon">☀️</span>
+    </button>
+    
     <h1>Multiplayer Blockudoku</h1>
     
     <div class="lobby-container" id="lobby-container">
@@ -455,6 +559,26 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // Theme toggle functionality
+            const themeToggle = document.getElementById('theme-toggle');
+            const body = document.body;
+            
+            // Check for saved theme preference or use system preference
+            const savedTheme = localStorage.getItem('blockudoku-theme');
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
+                body.classList.add('dark-mode');
+            }
+            
+            themeToggle.addEventListener('click', () => {
+                body.classList.toggle('dark-mode');
+                
+                // Save preference
+                const isDark = body.classList.contains('dark-mode');
+                localStorage.setItem('blockudoku-theme', isDark ? 'dark' : 'light');
+            });
+
             // Firebase configuration (replace with your own)
             const firebaseConfig = {
               apiKey: "AIzaSyBz-mDmO3VgjO3kJ-LTxzA2REs-bSeHfKc",
