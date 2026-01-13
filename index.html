@@ -27,6 +27,11 @@
             --mode-btn-color: #333;
             --selected-mode-bg: #4285F4;
             --selected-mode-color: white;
+            --chat-bg: white;
+            --chat-border: #ddd;
+            --chat-message-bg: #f1f1f1;
+            --chat-message-user-bg: #e3f2fd;
+            --teammate-preview-color: rgba(100, 100, 100, 0.3);
         }
 
         .dark-mode {
@@ -51,6 +56,11 @@
             --mode-btn-color: #ddd;
             --selected-mode-bg: #5a9cff;
             --selected-mode-color: white;
+            --chat-bg: #2d2d2d;
+            --chat-border: #444;
+            --chat-message-bg: #3d3d3d;
+            --chat-message-user-bg: #1e3a5f;
+            --teammate-preview-color: rgba(150, 150, 150, 0.3);
         }
 
         body {
@@ -113,6 +123,11 @@
         .cell.invalid-preview {
             background-color: var(--invalid-preview-color);
             border-color: #ff4444;
+        }
+        
+        .cell.teammate-preview {
+            background-color: var(--teammate-preview-color);
+            border-color: #888;
         }
         
         .cell.filled {
@@ -256,9 +271,8 @@
             background-color: var(--instructions-bg);
             padding: 15px;
             border-radius: 5px;
-            max-width: 600px;
+            max-width: 800px;
             text-align: center;
-            transition: background-color 0.3s;
         }
         
         .blocks-used {
@@ -479,6 +493,151 @@
         .dark-mode .theme-toggle .dark-icon {
             display: block;
         }
+        
+        /* Chat Styles */
+        .chat-container {
+            position: fixed;
+            left: 20px;
+            top: 80px;
+            width: 300px;
+            height: 500px;
+            background-color: var(--chat-bg);
+            border: 1px solid var(--chat-border);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 100;
+            transition: all 0.3s;
+        }
+        
+        .chat-header {
+            padding: 15px;
+            background-color: var(--button-bg);
+            color: white;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .chat-message {
+            padding: 8px 12px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+            background-color: var(--chat-message-bg);
+        }
+        
+        .chat-message.user {
+            align-self: flex-end;
+            background-color: var(--chat-message-user-bg);
+        }
+        
+        .chat-input-container {
+            display: flex;
+            padding: 15px;
+            border-top: 1px solid var(--chat-border);
+            gap: 10px;
+        }
+        
+        .chat-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid var(--chat-border);
+            border-radius: 5px;
+            background-color: var(--cell-bg);
+            color: var(--text-color);
+        }
+        
+        .chat-send-btn {
+            padding: 10px 15px;
+            background-color: var(--button-bg);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .chat-send-btn:hover {
+            background-color: var(--button-hover-bg);
+        }
+        
+        .chat-toggle {
+            position: fixed;
+            left: 20px;
+            top: 20px;
+            background: var(--button-bg);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+        
+        .chat-toggle:hover {
+            background: var(--button-hover-bg);
+            transform: scale(1.1);
+        }
+        
+        .teammate-block-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: var(--block-options-bg);
+            border-radius: 5px;
+        }
+        
+        .teammate-block-title {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: var(--text-color);
+            text-align: center;
+        }
+        
+        .teammate-block-display {
+            height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--block-option-bg);
+            border-radius: 5px;
+            position: relative;
+        }
+        
+        .teammate-name {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            font-size: 12px;
+            color: #666;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        
+        .dark-mode .teammate-name {
+            color: #ccc;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
     </style>
 </head>
 <body>
@@ -486,6 +645,20 @@
         <span class="light-icon">🌙</span>
         <span class="dark-icon">☀️</span>
     </button>
+    
+    <button class="chat-toggle" id="chat-toggle">💬</button>
+    
+    <div class="chat-container" id="chat-container" style="display: none;">
+        <div class="chat-header">
+            <span>Chat</span>
+            <button id="close-chat-btn" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer;">×</button>
+        </div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input-container">
+            <input type="text" class="chat-input" id="chat-input" placeholder="Nachricht eingeben..." maxlength="200">
+            <button class="chat-send-btn" id="chat-send-btn">Senden</button>
+        </div>
+    </div>
     
     <h1>Multiplayer Blockudoku</h1>
     
@@ -520,6 +693,13 @@
                     <h3>Dein Block:</h3>
                     <div id="current-block" class="block-option"></div>
                 </div>
+                
+                <div class="teammate-block-container">
+                    <div class="teammate-block-title">Aktueller Spieler blockiert:</div>
+                    <div id="teammate-block-display" class="teammate-block-display">
+                        <div id="no-teammate-block" style="color: #888; font-style: italic;">Kein Block ausgewählt</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -550,7 +730,10 @@
         <br>- <strong>Verlust-Modus:</strong> Wer keinen Block mehr platzieren kann, verliert
         <br>- <strong>Team-Modus:</strong> Alle Spieler arbeiten zusammen, Punkte werden addiert, Spiel endet wenn kein Block mehr platziert werden kann
         <br>Jeder Spieler platziert einen Block pro Runde.</p>
-        <p><strong>Neue Funktion:</strong> Sieh eine Vorschau, wo dein Block platziert wird, bevor du ihn ablegst!</p>
+        <p><strong>Neue Funktionen:</strong>
+        <br>- Sieh eine Vorschau, wo dein Block platziert wird, bevor du ihn ablegst!
+        <br>- Sieh die Blöcke anderer Spieler und wo sie sie platzieren wollen!
+        <br>- Chatte mit anderen Spielern in Echtzeit!</p>
     </div>
     
     <!-- Firebase SDK -->
@@ -628,6 +811,18 @@
             const finalScores = document.getElementById('final-scores');
             const restartGameBtn = document.getElementById('restart-game-btn');
             
+            // Chat DOM elements
+            const chatToggle = document.getElementById('chat-toggle');
+            const chatContainer = document.getElementById('chat-container');
+            const closeChatBtn = document.getElementById('close-chat-btn');
+            const chatMessages = document.getElementById('chat-messages');
+            const chatInput = document.getElementById('chat-input');
+            const chatSendBtn = document.getElementById('chat-send-btn');
+            
+            // Teammate block preview DOM elements
+            const teammateBlockDisplay = document.getElementById('teammate-block-display');
+            const noTeammateBlock = document.getElementById('no-teammate-block');
+            
             // Game state
             let playerId;
             let playerName;
@@ -636,6 +831,8 @@
             let gameRef;
             let playersRef;
             let boardRef;
+            let chatRef;
+            let previewsRef;
             let currentTurnPlayerId;
             let gameStarted = false;
             let gameBoard;
@@ -648,6 +845,9 @@
             let gameMode = 'point'; // 'point', 'loss' or 'team'
             let previewCells = [];
             let isGameOver = false;
+            let teammatePreviews = {}; // Store teammate previews
+            let teammatePreviewsCells = []; // Store teammate preview cells
+            let currentPlayerPreview = null; // Current player's mouse preview
             
             // Block-Typen
             const blockTypes = [
@@ -687,6 +887,9 @@
                 isGameOver = false;
                 gameOverElement.style.display = 'none';
                 gameOverOverlay.style.display = 'none';
+                
+                // Show chat
+                chatContainer.style.display = 'flex';
             }
             
             // Generate random player name
@@ -719,6 +922,8 @@
                 gameRef = database.ref('games/' + roomCode);
                 playersRef = gameRef.child('players');
                 boardRef = gameRef.child('board');
+                chatRef = gameRef.child('chat');
+                previewsRef = gameRef.child('previews');
                 
                 // Initialize game data
                 gameRef.set({
@@ -732,12 +937,21 @@
                     winner: null
                 });
                 
+                // Initialize chat
+                chatRef.set({
+                    messages: []
+                });
+                
+                // Initialize previews
+                previewsRef.set({});
+                
                 // Add host player
                 playersRef.child(playerId).set({
                     name: playerName,
                     score: 0,
                     isHost: true,
-                    canPlay: true
+                    canPlay: true,
+                    currentBlock: null
                 });
                 
                 // Set up listeners
@@ -765,6 +979,8 @@
                 gameRef = database.ref('games/' + roomCode);
                 playersRef = gameRef.child('players');
                 boardRef = gameRef.child('board');
+                chatRef = gameRef.child('chat');
+                previewsRef = gameRef.child('previews');
                 
                 // Check if game exists
                 gameRef.once('value').then((snapshot) => {
@@ -784,7 +1000,8 @@
                         name: playerName,
                         score: 0,
                         isHost: false,
-                        canPlay: true
+                        canPlay: true,
+                        currentBlock: null
                     });
                     
                     // Set up listeners
@@ -834,6 +1051,9 @@
                             if (currentTurnPlayerId === playerId) {
                                 generateNewBlock();
                             }
+                            
+                            // Update teammate block display
+                            updateTeammateBlockDisplay();
                         });
                         
                         // Listen for game over
@@ -863,6 +1083,27 @@
                 gameRef.child('teamScore').on('value', (snapshot) => {
                     if (gameMode === 'team' && snapshot.exists()) {
                         scoreElement.textContent = snapshot.val();
+                    }
+                });
+                
+                // Listen for chat messages
+                chatRef.child('messages').on('value', (snapshot) => {
+                    updateChat(snapshot.val());
+                });
+                
+                // Listen for player previews
+                previewsRef.on('value', (snapshot) => {
+                    const previews = snapshot.val() || {};
+                    updateTeammatePreviews(previews);
+                });
+                
+                // Listen for player current blocks
+                playersRef.on('child_changed', (childSnapshot) => {
+                    if (childSnapshot.key !== playerId) {
+                        const playerData = childSnapshot.val();
+                        if (playerData.currentBlock && childSnapshot.key === currentTurnPlayerId) {
+                            updateTeammateBlockDisplay();
+                        }
                     }
                 });
             }
@@ -958,11 +1199,14 @@
                 gameStarted = false;
                 isGameOver = false;
                 gameOverOverlay.style.display = 'none';
+                chatContainer.style.display = 'none';
                 
                 if (gameRef) {
                     gameRef.off();
                     playersRef.off();
                     boardRef.off();
+                    chatRef.off();
+                    previewsRef.off();
                 }
             }
             
@@ -1012,6 +1256,9 @@
                 const randomIndex = Math.floor(Math.random() * blockTypes.length);
                 currentBlock = randomTransform(blockTypes[randomIndex]);
                 
+                // Update player's current block in Firebase
+                playersRef.child(playerId).child('currentBlock').set(currentBlock);
+                
                 currentBlockOption.innerHTML = '';
                 currentBlockOption.classList.remove('used');
                 const blockElement = createBlockElement(currentBlock);
@@ -1039,11 +1286,15 @@
             }
             
             // Create a block element
-            function createBlockElement(block) {
+            function createBlockElement(block, isTeammate = false) {
                 const blockElement = document.createElement('div');
                 blockElement.className = 'block';
                 blockElement.style.position = 'absolute';
                 blockElement.title = block.name;
+                
+                if (isTeammate) {
+                    blockElement.style.opacity = '0.7';
+                }
                 
                 const rows = block.shape.length;
                 const cols = block.shape[0].length;
@@ -1157,7 +1408,36 @@
                 // Show preview at calculated position
                 if (gridX >= 0 && gridX < boardSize && gridY >= 0 && gridY < boardSize) {
                     showPreview(gridX, gridY, currentBlock);
+                    
+                    // Update preview in Firebase for other players to see
+                    if (currentTurnPlayerId === playerId) {
+                        updatePlayerPreview(gridX, gridY, currentBlock);
+                    }
+                } else {
+                    // Clear preview if out of bounds
+                    clearPlayerPreview();
                 }
+            }
+            
+            // Update player preview in Firebase
+            function updatePlayerPreview(gridX, gridY, block) {
+                if (currentPlayerPreview && currentPlayerPreview.gridX === gridX && currentPlayerPreview.gridY === gridY) {
+                    return; // Preview hasn't changed
+                }
+                
+                currentPlayerPreview = { gridX, gridY, block };
+                previewsRef.child(playerId).set({
+                    gridX: gridX,
+                    gridY: gridY,
+                    block: block,
+                    playerName: playerName
+                });
+            }
+            
+            // Clear player preview
+            function clearPlayerPreview() {
+                currentPlayerPreview = null;
+                previewsRef.child(playerId).remove();
             }
             
             // Show block placement preview
@@ -1199,6 +1479,47 @@
                 return isValid;
             }
             
+            // Update teammate previews
+            function updateTeammatePreviews(previews) {
+                // Clear all teammate previews
+                teammatePreviewsCells.forEach(cell => {
+                    cell.classList.remove('teammate-preview');
+                });
+                teammatePreviewsCells = [];
+                
+                // Apply new previews
+                Object.keys(previews).forEach(playerKey => {
+                    if (playerKey !== playerId) {
+                        const preview = previews[playerKey];
+                        if (preview && preview.gridX !== undefined && preview.gridY !== undefined && preview.block) {
+                            const block = preview.block;
+                            const rows = block.shape.length;
+                            const cols = block.shape[0].length;
+                            
+                            for (let y = 0; y < rows; y++) {
+                                for (let x = 0; x < cols; x++) {
+                                    if (block.shape[y][x]) {
+                                        const targetX = preview.gridX + x;
+                                        const targetY = preview.gridY + y;
+                                        
+                                        // Check bounds
+                                        if (targetX >= 0 && targetX < boardSize && targetY >= 0 && targetY < boardSize) {
+                                            const cellIndex = targetY * boardSize + targetX;
+                                            const cell = gameBoard.children[cellIndex];
+                                            
+                                            if (cell) {
+                                                teammatePreviewsCells.push(cell);
+                                                cell.classList.add('teammate-preview');
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
             // Clear preview
             function clearPreview() {
                 previewCells.forEach(cell => {
@@ -1216,6 +1537,7 @@
                 
                 // Clear preview
                 clearPreview();
+                clearPlayerPreview();
                 
                 // Calculate grid position for placement
                 const boardRect = gameBoard.getBoundingClientRect();
@@ -1401,6 +1723,9 @@
                 // Update board in Firebase
                 boardRef.set(newBoard);
                 
+                // Clear current block from player data
+                playersRef.child(playerId).child('currentBlock').set(null);
+                
                 // Mark block as used
                 currentBlockOption.classList.add('used');
                 
@@ -1567,6 +1892,77 @@
                 }
             }
             
+            // Update teammate block display
+            function updateTeammateBlockDisplay() {
+                if (!currentTurnPlayerId || currentTurnPlayerId === playerId) {
+                    teammateBlockDisplay.innerHTML = '';
+                    teammateBlockDisplay.appendChild(noTeammateBlock.cloneNode(true));
+                    return;
+                }
+                
+                // Get current turn player's block
+                playersRef.child(currentTurnPlayerId).once('value').then((snapshot) => {
+                    const playerData = snapshot.val();
+                    teammateBlockDisplay.innerHTML = '';
+                    
+                    if (playerData.currentBlock) {
+                        const blockElement = createBlockElement(playerData.currentBlock, true);
+                        teammateBlockDisplay.appendChild(blockElement);
+                        
+                        // Add player name
+                        const nameElement = document.createElement('div');
+                        nameElement.className = 'teammate-name';
+                        nameElement.textContent = playerData.name;
+                        teammateBlockDisplay.appendChild(nameElement);
+                    } else {
+                        teammateBlockDisplay.appendChild(noTeammateBlock.cloneNode(true));
+                    }
+                });
+            }
+            
+            // Update chat display
+            function updateChat(messages) {
+                if (!messages) return;
+                
+                chatMessages.innerHTML = '';
+                messages.forEach((message, index) => {
+                    const messageElement = document.createElement('div');
+                    messageElement.className = `chat-message ${message.senderId === playerId ? 'user' : ''}`;
+                    messageElement.innerHTML = `
+                        <strong>${message.senderName}:</strong><br>
+                        ${message.text}
+                    `;
+                    chatMessages.appendChild(messageElement);
+                });
+                
+                // Scroll to bottom
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            
+            // Send chat message
+            function sendChatMessage() {
+                const text = chatInput.value.trim();
+                if (!text) return;
+                
+                chatRef.child('messages').once('value').then((snapshot) => {
+                    const messages = snapshot.val() || [];
+                    messages.push({
+                        senderId: playerId,
+                        senderName: playerName,
+                        text: text,
+                        timestamp: Date.now()
+                    });
+                    
+                    // Keep only last 50 messages
+                    if (messages.length > 50) {
+                        messages.shift();
+                    }
+                    
+                    chatRef.child('messages').set(messages);
+                    chatInput.value = '';
+                });
+            }
+            
             // Event Listeners
             createGameBtn.addEventListener('click', createGame);
             
@@ -1624,6 +2020,23 @@
                 teamModeBtn.classList.add('selected');
                 pointModeBtn.classList.remove('selected');
                 lossModeBtn.classList.remove('selected');
+            });
+            
+            // Chat event listeners
+            chatToggle.addEventListener('click', () => {
+                chatContainer.style.display = chatContainer.style.display === 'none' ? 'flex' : 'none';
+            });
+            
+            closeChatBtn.addEventListener('click', () => {
+                chatContainer.style.display = 'none';
+            });
+            
+            chatSendBtn.addEventListener('click', sendChatMessage);
+            
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendChatMessage();
+                }
             });
             
             // Initialize
