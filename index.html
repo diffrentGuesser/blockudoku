@@ -482,8 +482,7 @@
         }
 
         .cell.teammate-preview {
-            background-color: var(--teammate) !important;
-            box-shadow: inset 0 0 0 2px var(--grid-line);
+            box-shadow: inset 0 0 0 2px #64748b, inset 0 0 0 100px var(--teammate) !important;
         }
 
         .cell.filled {
@@ -951,30 +950,21 @@
         const boardSize = 9;
 
         const blockTypes = [
-            { shape: [[1,1,1,1]], color: '#FF5252', name: 'I-Block' },
-            { shape: [[1,1],[1,1]], color: '#4285F4', name: 'O-Block' },
-            { shape: [[1,1,1],[0,1,0]], color: '#0F9D58', name: 'T-Block' },
-            { shape: [[1,1,0],[0,1,1]], color: '#9C27B0', name: 'Z-Block' },
-            { shape: [[0,1,0],[1,1,1]], color: '#FF9800', name: 'L-Block' },
-            { shape: [[1,0,0],[1,1,1]], color: '#00BCD4', name: 'J-Block' },
+            { shape: [[1,1]], color: '#FF9800', name: '2er-Block' },
             { shape: [[1,1,1]], color: '#FFC107', name: '3er-Block' },
-            { shape: [[1,1],[1,0]], color: '#E91E63', name: 'L-Block klein' },
-            { shape: [[1,1,1],[1,0,0]], color: '#795548', name: 'Großer L-Block' },
-            { shape: [[1,1,1,1],[0,0,0,1]], color: '#607D8B', name: 'Langer L-Block' },
-            { shape: [[1,1,1],[0,1,0],[0,1,0]], color: '#8BC34A', name: 'T-Block lang' },
+            { shape: [[1,1,1,1]], color: '#FF5252', name: 'I-Block' },
             { shape: [[1,1,1,1,1]], color: '#9E9E9E', name: '5er-Block' },
-            { shape: [[1,1,1],[0,0,1],[0,0,1]], color: '#FF4081', name: 'Lang-L-Block' },
-            { shape: [[1,1,1,1],[1,0,0,0]], color: '#FF5722', name: 'Pistole-Block' },
-            { shape: [[1,1],[1,1],[1,1]], color: '#673AB7', name: 'Doppel-Block' },
-            { shape: [[1,0,0],[1,1,0],[0,1,1]], color: '#00BCD4', name: 'S-Block' },
-            { shape: [[1,1,1,1,1,1]], color: '#3F51B5', name: '6er-Block' },
-            { shape: [[1,1,1],[1,1,1]], color: '#E91E63', name: '2x3-Block' },
-            { shape: [[1],[1],[1],[1],[1]], color: '#CDDC39', name: 'Langer I-Block' },
-            { shape: [[0,1,0,0],[1,1,1,1]], color: '#FF9800', name: 'T-Erweitert' },
-            { shape: [[1,1,1,1],[0,1,0,0],[0,1,0,0]], color: '#795548', name: 'L-Erweitert' },
-            { shape: [[1,0,0,0],[1,1,1,1],[0,0,0,1]], color: '#607D8B', name: 'U-Block' },
-            { shape: [[0,0,1,0],[1,1,1,1],[0,0,1,0]], color: '#9C27B0', name: 'Plus-Block' },
-            { shape: [[1,1,1],[1,0,1],[1,1,1]], color: '#FF5252', name: 'Rahmen-Block' },
+            { shape: [[1,1],[1,1]], color: '#4285F4', name: 'O-Block' },
+            { shape: [[1,1],[1,0]], color: '#E91E63', name: 'L-Block klein' },
+            { shape: [[1,1,1],[1,0,0]], color: '#795548', name: 'L-Block' },
+            { shape: [[1,1,1],[0,0,1],[0,0,1]], color: '#FF4081', name: 'Großer L-Block' },
+            { shape: [[1,1,1],[0,1,0]], color: '#0F9D58', name: 'T-Block' },
+            { shape: [[1,1,1],[0,1,0],[0,1,0]], color: '#8BC34A', name: 'T-Block lang' },
+            { shape: [[1,1,0],[0,1,1]], color: '#9C27B0', name: 'Z-Block' },
+            { shape: [[1,0,1],[1,1,1]], color: '#607D8B', name: 'U-Block' },
+            { shape: [[0,1,0],[1,1,1],[0,1,0]], color: '#3F51B5', name: 'Plus-Block' },
+            { shape: [[1,0],[0,1]], color: '#00BCD4', name: 'Diagonal 2' },
+            { shape: [[1,0,0],[0,1,0],[0,0,1]], color: '#673AB7', name: 'Diagonal 3' },
             { shape: [[1]], color: '#FF5252', name: 'Einer-Block' }
         ];
 
